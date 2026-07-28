@@ -33,3 +33,6 @@ frontend/dist/
 htmlcov/
 .cache/
 *.tsbuildinfo
+# Generated Vite config files
+frontend/vite.config.js
+frontend/vite.config.d.ts
