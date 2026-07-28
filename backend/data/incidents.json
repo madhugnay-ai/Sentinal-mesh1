@@ -1,0 +1,112 @@
+[
+  {
+    "incident_id": "INC-001",
+    "failure_category": "Inventory Failure",
+    "severity": "High",
+    "recoverable": true,
+    "symptoms": ["Inventory check failed", "Warehouse out of stock"],
+    "root_cause": "Warehouse out of stock",
+    "resolution": "Switch to alternate warehouse",
+    "recommended_action": "Retry inventory lookup"
+  },
+  {
+    "incident_id": "INC-002",
+    "failure_category": "Inventory Failure",
+    "severity": "Medium",
+    "recoverable": true,
+    "symptoms": ["Low inventory availability", "Partial stock mismatch"],
+    "root_cause": "Inventory records are stale",
+    "resolution": "Refresh inventory snapshot",
+    "recommended_action": "Retry inventory lookup"
+  },
+  {
+    "incident_id": "INC-003",
+    "failure_category": "Inventory Failure",
+    "severity": "Low",
+    "recoverable": true,
+    "symptoms": ["Minor availability mismatch"],
+    "root_cause": "Inventory count drift",
+    "resolution": "Reconcile stock count",
+    "recommended_action": "Retry inventory lookup"
+  },
+  {
+    "incident_id": "INC-004",
+    "failure_category": "Vendor Selection Failure",
+    "severity": "High",
+    "recoverable": true,
+    "symptoms": ["No vendor available", "No vendor rating match"],
+    "root_cause": "No vendor met the remaining criteria",
+    "resolution": "Select alternate vendor",
+    "recommended_action": "Select Alternate Vendor"
+  },
+  {
+    "incident_id": "INC-005",
+    "failure_category": "Vendor Selection Failure",
+    "severity": "Medium",
+    "recoverable": true,
+    "symptoms": ["Vendor strategy mismatch"],
+    "root_cause": "Preferred vendor is temporarily unavailable",
+    "resolution": "Use fallback vendor selection path",
+    "recommended_action": "Select Alternate Vendor"
+  },
+  {
+    "incident_id": "INC-005A",
+    "failure_category": "Vendor Selection Failure",
+    "severity": "Low",
+    "recoverable": true,
+    "symptoms": ["Vendor preferred ranking changed"],
+    "root_cause": "Vendor ranking metadata was updated",
+    "resolution": "Re-run the vendor selection strategy",
+    "recommended_action": "Select Alternate Vendor"
+  },
+  {
+    "incident_id": "INC-006",
+    "failure_category": "Budget Failure",
+    "severity": "High",
+    "recoverable": true,
+    "symptoms": ["Budget exceeded", "Approval threshold not met"],
+    "root_cause": "Requested total exceeded available budget",
+    "resolution": "Increase budget or narrow the requested scope",
+    "recommended_action": "Increase Budget"
+  },
+  {
+    "incident_id": "INC-007",
+    "failure_category": "Budget Failure",
+    "severity": "Medium",
+    "recoverable": true,
+    "symptoms": ["Budget nearing limit"],
+    "root_cause": "Cost estimate undercounted total expense",
+    "resolution": "Recalculate budget and resubmit",
+    "recommended_action": "Increase Budget"
+  },
+  {
+    "incident_id": "INC-008",
+    "failure_category": "Approval Failure",
+    "severity": "Medium",
+    "recoverable": true,
+    "symptoms": ["Pending manager approval", "Approval not completed"],
+    "root_cause": "Approval threshold exceeded and manual approval is pending",
+    "resolution": "Request manual approval",
+    "recommended_action": "Request Manual Approval"
+  },
+  {
+    "incident_id": "INC-009",
+    "failure_category": "Purchase Order Failure",
+    "severity": "High",
+    "recoverable": true,
+    "symptoms": ["Purchase order generation skipped", "Approval approved but PO missing"],
+    "root_cause": "Purchase order generation did not complete after approval",
+    "resolution": "Regenerate purchase order",
+    "recommended_action": "Regenerate Purchase Order"
+  },
+  {
+    "incident_id": "INC-010",
+    "failure_category": "Validation Failure",
+    "severity": "Critical",
+    "recoverable": false,
+    "symptoms": ["Invalid edge reference", "Missing entry node", "Cyclic workflow detected"],
+    "root_cause": "Workflow schema or graph structure is invalid",
+    "resolution": "Fix workflow definition before replay",
+    "recommended_action": "Escalate Workflow"
+  }
+]

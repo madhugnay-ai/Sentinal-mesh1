@@ -1,0 +1,35 @@
+# Secrets
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env
+
+# Gmail OAuth tokens
+.gmail_tokens.json
+backend/.gmail_tokens.json
+*_tokens.json
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Node
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs / coverage
+*.log
+.coverage
+htmlcov/
+.cache/
+*.tsbuildinfo
