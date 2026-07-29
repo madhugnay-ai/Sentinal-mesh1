@@ -32,6 +32,14 @@ function ExecutionPanel({ result, isExecuting, errorMessage }: ExecutionPanelPro
           <WorkflowHealthCard result={result} />
           <IncidentPanel result={result} />
           <HealingPanel result={result} />
+          {result.extracted_data ? (
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Extracted Data</h4>
+              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-sm text-slate-200">
+                {JSON.stringify(result.extracted_data, null, 2)}
+              </pre>
+            </div>
+          ) : null}
           <ExecutionLog executionLog={result.execution_log} />
         </div>
       ) : (

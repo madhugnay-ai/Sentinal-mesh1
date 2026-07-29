@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { type Connection, addEdge, useEdgesState, useNodesState } from 'reactflow';
 import { executeWorkflow, listWorkflows, saveWorkflow } from '../services/api';
-import { loadWorkflowFromStorage, saveWorkflowToStorage, exportWorkflowJson } from '../services/workflowStorage';
+import { loadWorkflowFromStorage, saveWorkflowToStorage, exportWorkflowJson, normalizeWorkflowEdges } from '../services/workflowStorage';
+import { getNodeExecutionState, getVisualExecutionState } from './executionState';
 import type { WorkflowEdge, WorkflowExecutionResult, WorkflowNode, WorkflowNodeData, WorkflowNodeField, WorkflowNodeValue, WorkflowPayload } from '../types/workflow';
 
 const initialNodes: WorkflowNode[] = [
@@ -33,73 +34,14 @@ const initialNodes: WorkflowNode[] = [
 
 const initialEdges: WorkflowEdge[] = [{ id: 'e1', source: 'requirement-validation-1', target: 'approval-1' }];
 
-type AnimationStep = {
-  nodeId: string;
-  status: 'success' | 'failed';
-};
-
 type ExecutionAnimationState = {
-  steps: AnimationStep[];
   currentNodeId: string | null;
   completedNodeIds: string[];
   failedNodeIds: string[];
   activeEdgeIds: string[];
   isPlaying: boolean;
+  skippedNodeIds: string[];
 };
-
-function normalize(text: string) {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-}
-
-function getNodeMatchers(node: WorkflowNode) {
-  return [node.data.kind, node.data.label, node.data.nodeType]
-    .filter(Boolean)
-    .map((value) => normalize(value as string))
-    .filter(Boolean);
-}
-
-function matchExecutionStep(entry: string, nodes: WorkflowNode[]) {
-  const normalizedEntry = normalize(entry);
-  if (!normalizedEntry) {
-    return null;
-  }
-
-  let bestMatch: { nodeId: string; score: number; index: number } | undefined;
-
-  nodes.forEach((node) => {
-    const keywords = getNodeMatchers(node);
-    if (!keywords.length) {
-      return;
-    }
-
-    const score = keywords.reduce((total, keyword) => (normalizedEntry.includes(keyword) ? total + 1 : total), 0);
-    if (!score) {
-      return;
-    }
-
-    const keywordIndex = keywords.reduce((smallestIndex, keyword) => {
-      const index = normalizedEntry.indexOf(keyword);
-      return index >= 0 && (smallestIndex === -1 || index < smallestIndex) ? index : smallestIndex;
-    }, -1);
-
-    if (!bestMatch || score > bestMatch.score || (score === bestMatch.score && keywordIndex !== -1 && (bestMatch.index === -1 || keywordIndex < bestMatch.index))) {
-      bestMatch = { nodeId: node.id, score, index: keywordIndex };
-    }
-  });
-
-  return bestMatch?.nodeId ?? null;
-}
-
-function getExecutionStatus(entry: string) {
-  const normalized = normalize(entry);
-  if (/failed|rejected|not generated|error/.test(normalized)) {
-    return 'failed' as const;
-  }
-  if (/passed|completed|approved|generated|healthy/.test(normalized)) {
-    return 'success' as const;
-  }
-  return 'success' as const;
-}
 
 export function useWorkflow() {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -112,6 +54,7 @@ export function useWorkflow() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [executionAnimation, setExecutionAnimation] = useState<ExecutionAnimationState | null>(null);
+  const replayTimeoutRef = useRef<number | null>(null);
 
   const workflowSummary = useMemo(() => ({
     nodes: nodes.length,
@@ -123,13 +66,13 @@ export function useWorkflow() {
 
   const animatedNodes = useMemo(() => {
     return nodes.map((node) => {
-      const state: WorkflowNodeData['executionState'] = executionAnimation?.currentNodeId === node.id
-        ? 'current'
-        : executionAnimation?.failedNodeIds.includes(node.id)
-          ? 'failed'
-          : executionAnimation?.completedNodeIds.includes(node.id)
-            ? 'success'
-            : 'waiting';
+      const state: WorkflowNodeData['executionState'] = getVisualExecutionState(node.id, {
+        currentNodeId: executionAnimation?.currentNodeId ?? null,
+        completedNodeIds: executionAnimation?.completedNodeIds ?? [],
+        failedNodeIds: executionAnimation?.failedNodeIds ?? [],
+        skippedNodeIds: executionAnimation?.skippedNodeIds ?? [],
+        isPlaying: executionAnimation?.isPlaying ?? false,
+      });
 
       return {
         ...node,
@@ -152,7 +95,22 @@ export function useWorkflow() {
   }, [edges, executionAnimation]);
 
   const onConnect = (params: Connection) => {
-    setEdges((currentEdges) => addEdge(params, currentEdges));
+    const sourceNode = nodes.find((node) => node.id === params.source);
+    const sourceKind = sourceNode?.data?.kind;
+    const normalizedKind = sourceKind ? sourceKind.toLowerCase() : '';
+
+    const nextParams: Connection = { ...params };
+
+    if (normalizedKind === 'classifier' && params.sourceHandle) {
+      nextParams.sourceHandle = params.sourceHandle;
+    } else if (normalizedKind === 'classifier' && !params.sourceHandle) {
+      const fallbackHandle = sourceNode?.data?.categories?.find((category) => category?.trim())?.trim();
+      if (fallbackHandle) {
+        nextParams.sourceHandle = fallbackHandle;
+      }
+    }
+
+    setEdges((currentEdges) => addEdge(nextParams, currentEdges));
   };
 
   const addNode = (kind: string) => {
@@ -162,11 +120,31 @@ export function useWorkflow() {
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(' ');
 
+    const description = kind === 'email-trigger'
+      ? 'Collect inbound emails from Gmail.'
+      : kind === 'llm'
+        ? 'Generate text with an LLM provider.'
+        : kind === 'condition'
+          ? 'Evaluate a condition and branch on true/false.'
+          : kind === 'router'
+            ? 'Select one outgoing route based on a field evaluation.'
+            : 'New workflow step.';
+
+    const config = kind === 'email-trigger'
+      ? 'Email account, folder, and filter settings'
+      : kind === 'llm'
+        ? 'LLM runtime configuration'
+        : kind === 'condition'
+          ? 'Field, operator, and value determine the branch.'
+          : kind === 'router'
+            ? 'Routes are evaluated in order; first match wins.'
+            : 'Default configuration';
+
     const nodeData: WorkflowNodeData = {
       label,
       nodeType: label,
-      description: kind === 'email-trigger' ? 'Collect inbound emails from Gmail.' : kind === 'llm' ? 'Generate text with an LLM provider.' : 'New workflow step.',
-      config: kind === 'email-trigger' ? 'Email account, folder, and filter settings' : kind === 'llm' ? 'LLM runtime configuration' : 'Default configuration',
+      description,
+      config,
       kind,
       ...(kind === 'email-trigger'
         ? {
@@ -193,13 +171,42 @@ export function useWorkflow() {
             useLlmOutput: true,
           }
         : {}),
+      ...(kind === 'classifier'
+        ? {
+            provider: 'Groq',
+            model: 'llama-3.1-8b-instant',
+            inputField: 'email_subject_and_body',
+            categories: ['critical', 'support', 'general'],
+            instructions: 'Classify the incoming content into exactly one configured category.',
+            temperature: 0,
+            maxTokens: 128,
+          }
+        : {}),
+      ...(kind === 'extractor'
+        ? {
+            provider: 'Groq',
+            model: 'llama-3.1-8b-instant',
+            inputField: 'email_subject_and_body',
+            extractionFields: ['service', 'status', 'location', 'urgency'],
+            instructions: 'Extract the requested fields into a structured JSON object.',
+            temperature: 0,
+            maxTokens: 256,
+          }
+        : {}),
       ...(kind === 'condition'
         ? {
             field: 'email_subject',
             operator: 'contains',
             value: 'URGENT',
-            description: 'Evaluate a condition and branch on true/false.',
-            config: 'Field, operator, and value determine the branch.',
+          }
+        : kind === 'router'
+        ? {
+            field: 'workflow_status',
+            defaultRoute: 'default',
+            routes: [
+              { route: 'critical', operator: 'equals', value: 'CRITICAL' },
+              { route: 'normal', operator: 'equals', value: 'NORMAL' },
+            ],
           }
         : {}),
     };
@@ -233,11 +240,12 @@ export function useWorkflow() {
   };
 
   const handleSaveWorkflow = async () => {
+    const normalizedEdges = normalizeWorkflowEdges(nodes, edges);
     const payload: WorkflowPayload = {
       name,
       description: `Workflow built in SentinelMesh Studio: ${name}`,
       nodes: nodes.map(({ id, type, position, data }) => ({ id, type, position, data })),
-      edges,
+      edges: normalizedEdges,
     };
 
     try {
@@ -292,60 +300,34 @@ export function useWorkflow() {
     setStatus('JSON exported');
   };
 
-  const replayExecutionAnimation = (logEntries: string[] | undefined = executionResult?.execution_log) => {
-    const steps = (logEntries ?? []).reduce<AnimationStep[]>((collected, entry) => {
-      const nodeId = matchExecutionStep(entry, nodes);
-      if (!nodeId) {
-        return collected;
-      }
-
-      collected.push({ nodeId, status: getExecutionStatus(entry) });
-      return collected;
-    }, []);
-
-    if (!steps.length) {
-      setExecutionAnimation(null);
-      return;
+  const replayExecutionAnimation = (result: WorkflowExecutionResult | string[] | null = executionResult) => {
+    if (replayTimeoutRef.current !== null) {
+      window.clearTimeout(replayTimeoutRef.current);
+      replayTimeoutRef.current = null;
     }
 
+    const nodeState = getNodeExecutionState(nodes, Array.isArray(result) ? ({ execution_log: result } as WorkflowExecutionResult) : result);
+
     setExecutionAnimation({
-      steps,
-      currentNodeId: null,
+      currentNodeId: nodeState.currentNodeId,
       completedNodeIds: [],
       failedNodeIds: [],
       activeEdgeIds: [],
       isPlaying: true,
+      skippedNodeIds: nodeState.skippedNodeIds,
     });
 
-    let index = 0;
-    const runStep = () => {
-      if (index >= steps.length) {
-        setExecutionAnimation((current) => (current ? { ...current, currentNodeId: null, isPlaying: false } : null));
-        return;
-      }
-
-      const step = steps[index];
-      const previousStep = steps[index - 1];
-      const completedNodeIds = steps.slice(0, index).map((item) => item.nodeId);
-      const failedNodeIds = steps.slice(0, index).filter((item) => item.status === 'failed').map((item) => item.nodeId);
-      const activeEdgeIds = previousStep && edges.find((edge) => edge.source === previousStep.nodeId && edge.target === step.nodeId)
-        ? [edges.find((edge) => edge.source === previousStep.nodeId && edge.target === step.nodeId)!.id]
-        : [];
-
+    replayTimeoutRef.current = window.setTimeout(() => {
+      replayTimeoutRef.current = null;
       setExecutionAnimation({
-        steps,
-        currentNodeId: step.nodeId,
-        completedNodeIds,
-        failedNodeIds,
-        activeEdgeIds,
-        isPlaying: true,
+        currentNodeId: null,
+        completedNodeIds: nodeState.completedNodeIds,
+        failedNodeIds: nodeState.failedNodeIds,
+        activeEdgeIds: [],
+        isPlaying: false,
+        skippedNodeIds: nodeState.skippedNodeIds,
       });
-
-      index += 1;
-      window.setTimeout(runStep, 900);
-    };
-
-    runStep();
+    }, 500);
   };
 
   const executeWorkflowFromBackend = async () => {
@@ -368,7 +350,7 @@ export function useWorkflow() {
       console.log(result);
       setExecutionResult(result);
       setExecutionAnimation(null);
-      replayExecutionAnimation(result.execution_log);
+      replayExecutionAnimation(result);
       setStatus('Workflow executed');
     } catch (error) {
       setExecutionResult(null);
@@ -380,6 +362,15 @@ export function useWorkflow() {
       setIsExecuting(false);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (replayTimeoutRef.current !== null) {
+        window.clearTimeout(replayTimeoutRef.current);
+        replayTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   const clearCanvas = () => {
     setNodes([]);

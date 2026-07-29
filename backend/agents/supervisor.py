@@ -115,7 +115,7 @@ class SupervisorAgent(BaseAgent):
         for node in self._workflow_nodes(state):
             node_data = node.get("data") if isinstance(node.get("data"), dict) else {}
             node_kind = node_data.get("kind") or node.get("type")
-            if node_kind in {"email-trigger", "Email Trigger", "condition", "Condition", "llm", "LLM", "send-email", "Send Email"}:
+            if node_kind in {"email-trigger", "Email Trigger", "condition", "Condition", "router", "Router", "classifier", "Classifier", "llm", "LLM", "send-email", "Send Email"}:
                 generic_nodes.append(node)
         
 
@@ -161,14 +161,14 @@ class SupervisorAgent(BaseAgent):
                 generic_auto_completed = True
         
 
-        # Precompute conditional outgoing targets by node id
-        condition_outgoing: dict[str, dict[str, str]] = {}
+        # Precompute outgoing targets by node id and source handle.
+        branch_outgoing: dict[str, dict[str, str]] = {}
         for edge in (state.get("workflow_data") or {}).get("edges", []) if isinstance((state.get("workflow_data") or {}).get("edges", []), list) else []:
             src = edge.get("source")
             handle = edge.get("sourceHandle")
             tgt = edge.get("target")
             if isinstance(src, str) and isinstance(handle, str) and isinstance(tgt, str):
-                condition_outgoing.setdefault(src, {})[handle] = tgt
+                branch_outgoing.setdefault(src, {})[handle] = tgt
 
         marked_nodes: set[str] = set()
 
@@ -183,7 +183,7 @@ class SupervisorAgent(BaseAgent):
             if node_data.get("kind") in {"condition", "Condition"}:
                 completed_stages.append(str(label))
                 marked_nodes.add(node_id)
-                branches = condition_outgoing.get(node_id, {})
+                branches = branch_outgoing.get(node_id, {})
                 taken = None
                 if state.get("condition_result") is True:
                     taken = branches.get("true")
@@ -209,6 +209,32 @@ class SupervisorAgent(BaseAgent):
                             skipped_stages.append(str(target_label or target))
                             marked_nodes.add(target)
                 # move to next node
+                continue
+            if node_data.get("kind") in {"router", "Router"}:
+                completed_stages.append(str(label))
+                marked_nodes.add(node_id)
+                branches = branch_outgoing.get(node_id, {})
+                taken = None
+                selected_route = state.get("router_result")
+                if isinstance(selected_route, str):
+                    taken = branches.get(selected_route)
+                for handle, target in branches.items():
+                    if not target:
+                        continue
+                    target_label = None
+                    for n in generic_nodes:
+                        if n.get("id") == target:
+                            td = n.get("data") if isinstance(n.get("data"), dict) else {}
+                            target_label = td.get("label") or n.get("id") or n.get("type")
+                            break
+                    if target == taken:
+                        if target not in marked_nodes:
+                            completed_stages.append(str(target_label or target))
+                            marked_nodes.add(target)
+                    else:
+                        if target not in marked_nodes:
+                            skipped_stages.append(str(target_label or target))
+                            marked_nodes.add(target)
                 continue
             if node_id in marked_nodes:
                 continue

@@ -15,6 +15,11 @@ class WorkflowExecutionResponse(BaseModel):
     workflow_summary: str
     completed_stages: list[str]
     failed_stages: list[str]
+    skipped_stages: list[str]
+    executed_node_ids: list[str]
+    failed_node_ids: list[str]
+    skipped_node_ids: list[str]
+    current_node_id: str | None = None
     failure_category: str
     failure_severity: str
     incident_matches: list[dict]

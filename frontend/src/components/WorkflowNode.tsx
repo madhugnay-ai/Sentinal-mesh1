@@ -1,19 +1,25 @@
 import { Handle, Position, type NodeProps } from 'reactflow';
+import { normalizeNodeKind } from '../nodeCapabilities';
 import type { WorkflowNodeData } from '../types/workflow';
+import { getClassifierHandleDefinitions } from '../utils/classifierHandles';
 
 const palette: Record<string, { color: string; icon: string }> = {
   'requirement-validation': { color: 'from-cyan-500 to-sky-600', icon: '✓' },
   inventory: { color: 'from-violet-500 to-indigo-600', icon: '▣' },
-  'vendor-selection': { color: 'from-amber-500 to-orange-600', icon: '⛭' },
+  'vendor-selection': { color: 'from-amber-500 to-orange-600', icon: '⟭' },
   'budget-validation': { color: 'from-emerald-500 to-green-600', icon: '$' },
   approval: { color: 'from-fuchsia-500 to-pink-600', icon: '⚑' },
   'purchase-order': { color: 'from-rose-500 to-red-600', icon: '⟡' },
   'email-trigger': { color: 'from-blue-500 to-cyan-600', icon: '✉' },
   condition: { color: 'from-lime-500 to-emerald-600', icon: '⚖' },
+  router: { color: 'from-amber-500 to-yellow-600', icon: '🔀' },
+  classifier: { color: 'from-purple-500 to-fuchsia-600', icon: '🧠' },
+  extractor: { color: 'from-indigo-500 to-blue-600', icon: '🧩' },
 };
 
 function WorkflowNode({ data, selected }: NodeProps<WorkflowNodeData>) {
-  const style = palette[data.kind] ?? palette['requirement-validation'];
+  const normalizedKind = normalizeNodeKind(data.kind);
+  const style = palette[normalizedKind] ?? palette['requirement-validation'];
   const executionState = data.executionState ?? 'waiting';
   const stateClasses: Record<NonNullable<WorkflowNodeData['executionState']>, string> = {
     waiting: 'border-slate-700 bg-slate-900/95',
@@ -34,10 +40,42 @@ function WorkflowNode({ data, selected }: NodeProps<WorkflowNodeData>) {
       className={`min-w-[220px] rounded-2xl border p-3 shadow-xl ${stateClasses[executionState]} ${selected ? 'ring-2 ring-cyan-400' : ''}`}
     >
       <Handle type="target" position={Position.Left} className="!bg-cyan-400" />
-      {data.kind === 'condition' ? (
+      {normalizedKind === 'condition' ? (
         <>
           <Handle id="true" type="source" position={Position.Right} className="!bg-emerald-400" style={{ top: '30%' }} />
           <Handle id="false" type="source" position={Position.Right} className="!bg-rose-400" style={{ top: '70%' }} />
+        </>
+      ) : normalizedKind === 'router' ? (
+        <>
+          {Array.isArray(data.routes) && data.routes.length > 0 ? (
+            data.routes.map((route, index) => (
+              <Handle
+                key={route.route || index}
+                id={route.route}
+                type="source"
+                position={Position.Right}
+                className="!bg-orange-400"
+                style={{ top: `${20 + index * 18}%` }}
+              />
+            ))
+          ) : (
+            <Handle type="source" position={Position.Right} className="!bg-orange-400" />
+          )}
+          <Handle id="default" type="source" position={Position.Right} className="!bg-slate-400" style={{ top: '90%' }} />
+        </>
+      ) : normalizedKind === 'classifier' ? (
+        <>
+          {getClassifierHandleDefinitions(data.categories).map((handle) => (
+            <Handle
+              key={handle.id}
+              id={handle.id}
+              type="source"
+              position={Position.Right}
+              className="!bg-fuchsia-400"
+              style={{ top: handle.top }}
+            />
+          ))}
+          {(!data.categories || data.categories.length === 0) && <Handle type="source" position={Position.Right} className="!bg-fuchsia-400" />}
         </>
       ) : (
         <Handle type="source" position={Position.Right} className="!bg-cyan-400" />

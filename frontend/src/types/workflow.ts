@@ -17,6 +17,10 @@ export type WorkflowNodeData = {
   prompt?: string;
   temperature?: number;
   maxTokens?: number;
+  inputField?: string;
+  categories?: string[];
+  extractionFields?: string[];
+  instructions?: string;
   recipientEmail?: string;
   subject?: string;
   body?: string;
@@ -24,6 +28,8 @@ export type WorkflowNodeData = {
   field?: string;
   operator?: string;
   value?: string;
+  defaultRoute?: string;
+  routes?: Array<{ route: string; operator: string; value: string }>;
   executionState?: 'waiting' | 'current' | 'success' | 'failed';
 };
 
@@ -42,9 +48,36 @@ export type WorkflowPayload = {
   edges: WorkflowEdge[];
 };
 
-export type WorkflowNodeField = 'label' | 'nodeType' | 'description' | 'config' | 'emailAccount' | 'folder' | 'unreadOnly' | 'subjectFilter' | 'gmailConnectionStatus' | 'provider' | 'model' | 'prompt' | 'temperature' | 'maxTokens' | 'recipientEmail' | 'subject' | 'body' | 'useLlmOutput' | 'field' | 'operator' | 'value';
+export type WorkflowNodeField =
+  | 'label'
+  | 'nodeType'
+  | 'description'
+  | 'config'
+  | 'emailAccount'
+  | 'folder'
+  | 'unreadOnly'
+  | 'subjectFilter'
+  | 'gmailConnectionStatus'
+  | 'provider'
+  | 'model'
+  | 'prompt'
+  | 'temperature'
+  | 'maxTokens'
+  | 'inputField'
+  | 'categories'
+  | 'extractionFields'
+  | 'instructions'
+  | 'recipientEmail'
+  | 'subject'
+  | 'body'
+  | 'useLlmOutput'
+  | 'field'
+  | 'operator'
+  | 'value'
+  | 'defaultRoute'
+  | 'routes';
 
-export type WorkflowNodeValue = string | boolean | number;
+export type WorkflowNodeValue = string | boolean | number | string[] | Array<Record<string, string>>;
 
 export type WorkflowRecord = {
   workflow_id: string;
@@ -62,6 +95,11 @@ export type WorkflowExecutionResult = {
   workflow_summary: string;
   completed_stages: string[];
   failed_stages: string[];
+  skipped_stages?: string[];
+  executed_node_ids?: string[];
+  failed_node_ids?: string[];
+  skipped_node_ids?: string[];
+  current_node_id?: string | null;
   failure_category?: string;
   failure_severity?: string;
   incident_matches: Array<{
@@ -75,5 +113,6 @@ export type WorkflowExecutionResult = {
   recommended_resolution: string;
   healing_strategy: string;
   healing_status: string;
+  extracted_data?: Record<string, unknown> | null;
   execution_log: string[];
 };

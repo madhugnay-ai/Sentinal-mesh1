@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { connectGmail, disconnectGmail, getGmailConnectionStatus } from '../services/api';
+import { normalizeNodeKind } from '../nodeCapabilities';
 import type { WorkflowNodeData, WorkflowNodeField, WorkflowNodeValue } from '../types/workflow';
 
 type PropertiesPanelProps = {
@@ -13,6 +14,7 @@ type PropertiesPanelProps = {
 function PropertiesPanel({ selectedNode, onUpdateNode }: PropertiesPanelProps) {
   const [gmailStatus, setGmailStatus] = useState<'idle' | 'loading' | 'connected' | 'disconnected' | 'error'>('idle');
   const [gmailMessage, setGmailMessage] = useState('');
+  const normalizedKind = normalizeNodeKind(selectedNode?.data.kind);
 
   useEffect(() => {
     if (!selectedNode || selectedNode.data.kind !== 'email-trigger') {
@@ -96,7 +98,7 @@ function PropertiesPanel({ selectedNode, onUpdateNode }: PropertiesPanelProps) {
           />
         </label>
 
-        {selectedNode.data.kind === 'email-trigger' ? (
+        {normalizedKind === 'email-trigger' ? (
           <>
             <label className="block">
               <span className="mb-1 block text-slate-400">Email Account</span>
@@ -185,7 +187,7 @@ function PropertiesPanel({ selectedNode, onUpdateNode }: PropertiesPanelProps) {
           </>
         ) : null}
 
-        {selectedNode.data.kind === 'llm' ? (
+        {normalizedKind === 'llm' ? (
           <>
             <label className="block">
               <span className="mb-1 block text-slate-400">Provider</span>
@@ -214,6 +216,230 @@ function PropertiesPanel({ selectedNode, onUpdateNode }: PropertiesPanelProps) {
               <textarea
                 value={selectedNode.data.prompt || ''}
                 onChange={(event) => onUpdateNode(selectedNode.id, 'prompt', event.target.value)}
+                className="min-h-24 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Temperature</span>
+              <input
+                type="number"
+                step="0.1"
+                value={selectedNode.data.temperature ?? 0}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'temperature', Number(event.target.value))}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Max Tokens</span>
+              <input
+                type="number"
+                value={selectedNode.data.maxTokens ?? 256}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'maxTokens', Number(event.target.value))}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              />
+            </label>
+          </>
+        ) : null}
+
+        {normalizedKind === 'classifier' ? (
+          <>
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Provider</span>
+              <select
+                value={selectedNode.data.provider || 'Groq'}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'provider', event.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              >
+                <option value="OpenAI">OpenAI</option>
+                <option value="Gemini">Gemini</option>
+                <option value="Groq">Groq</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Model</span>
+              <input
+                value={selectedNode.data.model || ''}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'model', event.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Input Field</span>
+              <select
+                value={selectedNode.data.inputField || 'email_subject_and_body'}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'inputField', event.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              >
+                <option value="email_subject">Email Subject</option>
+                <option value="email_body">Email Body</option>
+                <option value="email_subject_and_body">Email Subject + Body</option>
+                <option value="input">Current Input</option>
+              </select>
+            </label>
+
+            <div className="space-y-3 rounded-lg border border-slate-700 bg-slate-950/80 p-3">
+              <div className="flex items-center justify-between text-slate-300">
+                <span className="text-sm font-medium">Categories</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentCategories = Array.isArray(selectedNode.data.categories) ? selectedNode.data.categories : [];
+                    onUpdateNode(selectedNode.id, 'categories', [...currentCategories, 'new-category']);
+                  }}
+                  className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-200"
+                >
+                  Add category
+                </button>
+              </div>
+              {(Array.isArray(selectedNode.data.categories) ? selectedNode.data.categories : []).map((category, index) => (
+                <div key={`${category}-${index}`} className="flex gap-2">
+                  <input
+                    value={category}
+                    onChange={(event) => {
+                      const nextCategories = Array.isArray(selectedNode.data.categories)
+                        ? selectedNode.data.categories.map((item, idx) => (idx === index ? event.target.value : item))
+                        : [];
+                      onUpdateNode(selectedNode.id, 'categories', nextCategories);
+                    }}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextCategories = Array.isArray(selectedNode.data.categories)
+                        ? selectedNode.data.categories.filter((_, idx) => idx !== index)
+                        : [];
+                      onUpdateNode(selectedNode.id, 'categories', nextCategories);
+                    }}
+                    className="rounded-lg border border-slate-700 bg-rose-600/10 px-2 py-2 text-xs text-rose-200"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Instructions</span>
+              <textarea
+                value={selectedNode.data.instructions || ''}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'instructions', event.target.value)}
+                className="min-h-24 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Temperature</span>
+              <input
+                type="number"
+                step="0.1"
+                value={selectedNode.data.temperature ?? 0}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'temperature', Number(event.target.value))}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Max Tokens</span>
+              <input
+                type="number"
+                value={selectedNode.data.maxTokens ?? 128}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'maxTokens', Number(event.target.value))}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              />
+            </label>
+          </>
+        ) : null}
+
+        {normalizedKind === 'extractor' ? (
+          <>
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Provider</span>
+              <select
+                value={selectedNode.data.provider || 'Groq'}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'provider', event.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              >
+                <option value="OpenAI">OpenAI</option>
+                <option value="Gemini">Gemini</option>
+                <option value="Groq">Groq</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Model</span>
+              <input
+                value={selectedNode.data.model || ''}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'model', event.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Input Field</span>
+              <select
+                value={selectedNode.data.inputField || 'email_subject_and_body'}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'inputField', event.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              >
+                <option value="email_subject">Email Subject</option>
+                <option value="email_body">Email Body</option>
+                <option value="email_subject_and_body">Email Subject + Body</option>
+                <option value="input">Current Input</option>
+              </select>
+            </label>
+
+            <div className="space-y-3 rounded-lg border border-slate-700 bg-slate-950/80 p-3">
+              <div className="flex items-center justify-between text-slate-300">
+                <span className="text-sm font-medium">Extraction Fields</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentFields = Array.isArray(selectedNode.data.extractionFields) ? selectedNode.data.extractionFields : [];
+                    onUpdateNode(selectedNode.id, 'extractionFields', [...currentFields, 'new_field']);
+                  }}
+                  className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-200"
+                >
+                  Add field
+                </button>
+              </div>
+              {(Array.isArray(selectedNode.data.extractionFields) ? selectedNode.data.extractionFields : []).map((field, index) => (
+                <div key={`${field}-${index}`} className="flex gap-2">
+                  <input
+                    value={field}
+                    onChange={(event) => {
+                      const nextFields = Array.isArray(selectedNode.data.extractionFields)
+                        ? selectedNode.data.extractionFields.map((item, idx) => (idx === index ? event.target.value : item))
+                        : [];
+                      onUpdateNode(selectedNode.id, 'extractionFields', nextFields);
+                    }}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextFields = Array.isArray(selectedNode.data.extractionFields)
+                        ? selectedNode.data.extractionFields.filter((_, idx) => idx !== index)
+                        : [];
+                      onUpdateNode(selectedNode.id, 'extractionFields', nextFields);
+                    }}
+                    className="rounded-lg border border-slate-700 bg-rose-600/10 px-2 py-2 text-xs text-rose-200"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Instructions</span>
+              <textarea
+                value={selectedNode.data.instructions || ''}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'instructions', event.target.value)}
                 className="min-h-24 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
               />
             </label>
@@ -279,7 +505,8 @@ function PropertiesPanel({ selectedNode, onUpdateNode }: PropertiesPanelProps) {
                 className="h-4 w-4 rounded border-slate-600 bg-slate-900"
               />
             </label>
-          </>        ) : selectedNode.data.kind === 'condition' ? (
+          </>
+        ) : selectedNode.data.kind === 'condition' ? (
           <>
             <label className="block">
               <span className="mb-1 block text-slate-400">Field</span>
@@ -317,16 +544,106 @@ function PropertiesPanel({ selectedNode, onUpdateNode }: PropertiesPanelProps) {
                 className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none disabled:cursor-not-allowed disabled:opacity-50"
               />
             </label>
-          </>        ) : null}
-
-        <label className="block">
-          <span className="mb-1 block text-slate-400">Configuration</span>
-          <textarea
-            value={selectedNode.data.config}
-            onChange={(event) => onUpdateNode(selectedNode.id, 'config', event.target.value)}
-            className="min-h-24 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
-          />
-        </label>
+          </>
+        ) : selectedNode.data.kind === 'router' ? (
+          <>
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Field</span>
+              <input
+                value={selectedNode.data.field ?? ''}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'field', event.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Default Route</span>
+              <input
+                value={selectedNode.data.defaultRoute ?? ''}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'defaultRoute', event.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              />
+            </label>
+            <div className="space-y-3 rounded-lg border border-slate-700 bg-slate-950/80 p-3">
+              <div className="flex items-center justify-between text-slate-300">
+                <span className="text-sm font-medium">Routes</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentRoutes = Array.isArray(selectedNode.data.routes) ? selectedNode.data.routes : [];
+                    onUpdateNode(selectedNode.id, 'routes', [
+                      ...currentRoutes,
+                      { route: `route${currentRoutes.length + 1}`, operator: 'equals', value: '' },
+                    ]);
+                  }}
+                  className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-200"
+                >
+                  Add route
+                </button>
+              </div>
+              {(Array.isArray(selectedNode.data.routes) ? selectedNode.data.routes : []).map((route, index) => (
+                <div key={index} className="grid grid-cols-12 gap-2">
+                  <label className="col-span-4">
+                    <span className="mb-1 block text-slate-400">Route</span>
+                    <input
+                      value={route.route ?? ''}
+                      onChange={(event) => {
+                        const nextRoutes = Array.isArray(selectedNode.data.routes) ? selectedNode.data.routes.map((item, idx) => idx === index ? { ...item, route: event.target.value } : item) : [];
+                        onUpdateNode(selectedNode.id, 'routes', nextRoutes);
+                      }}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+                    />
+                  </label>
+                  <label className="col-span-4">
+                    <span className="mb-1 block text-slate-400">Operator</span>
+                    <select
+                      value={route.operator ?? 'equals'}
+                      onChange={(event) => {
+                        const nextRoutes = Array.isArray(selectedNode.data.routes) ? selectedNode.data.routes.map((item, idx) => idx === index ? { ...item, operator: event.target.value } : item) : [];
+                        onUpdateNode(selectedNode.id, 'routes', nextRoutes);
+                      }}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+                    >
+                      <option value="equals">equals</option>
+                      <option value="not_equals">not_equals</option>
+                      <option value="contains">contains</option>
+                      <option value="not_contains">not_contains</option>
+                      <option value="greater_than">greater_than</option>
+                      <option value="less_than">less_than</option>
+                      <option value="greater_than_or_equal">greater_than_or_equal</option>
+                      <option value="less_than_or_equal">less_than_or_equal</option>
+                      <option value="exists">exists</option>
+                      <option value="not_exists">not_exists</option>
+                    </select>
+                  </label>
+                  <label className="col-span-3">
+                    <span className="mb-1 block text-slate-400">Value</span>
+                    <input
+                      value={route.value ?? ''}
+                      onChange={(event) => {
+                        const nextRoutes = Array.isArray(selectedNode.data.routes) ? selectedNode.data.routes.map((item, idx) => idx === index ? { ...item, value: event.target.value } : item) : [];
+                        onUpdateNode(selectedNode.id, 'routes', nextRoutes);
+                      }}
+                      disabled={route.operator === 'exists' || route.operator === 'not_exists'}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextRoutes = Array.isArray(selectedNode.data.routes)
+                        ? selectedNode.data.routes.filter((_, idx) => idx !== index)
+                        : [];
+                      onUpdateNode(selectedNode.id, 'routes', nextRoutes);
+                    }}
+                    className="col-span-1 rounded-lg border border-slate-700 bg-rose-600/10 px-2 py-2 text-xs text-rose-200"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : null}
       </div>
     </aside>
   );

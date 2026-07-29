@@ -6,6 +6,15 @@ export type NodeCapability = {
   executable: boolean;
 };
 
+export function normalizeNodeKind(kind?: string): string {
+  return (kind ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, '-')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 const capabilities: Record<string, NodeCapability> = {
   'email-trigger': { label: 'Email Trigger', implemented: true, executable: true },
   'requirement-validation': { label: 'Requirement Validation', implemented: true, executable: true },
@@ -21,8 +30,9 @@ const capabilities: Record<string, NodeCapability> = {
   llm: { label: 'LLM', implemented: true, executable: true },
   'send-email': { label: 'Send Email', implemented: true, executable: true },
   condition: { label: 'Condition', implemented: true, executable: true },
-  extractor: { label: 'Extractor', implemented: false, executable: false },
-  classifier: { label: 'Classifier', implemented: false, executable: false },
+  router: { label: 'Router', implemented: true, executable: true },
+  extractor: { label: 'Extractor', implemented: true, executable: true },
+  classifier: { label: 'Classifier', implemented: true, executable: true },
   summarizer: { label: 'Summarizer', implemented: false, executable: false },
   scheduler: { label: 'Scheduler', implemented: false, executable: false },
   webhook: { label: 'Webhook', implemented: false, executable: false },
@@ -33,7 +43,7 @@ const capabilities: Record<string, NodeCapability> = {
 };
 
 export function getNodeCapability(kind?: string): NodeCapability {
-  const normalizedKind = kind?.trim().toLowerCase();
+  const normalizedKind = normalizeNodeKind(kind);
   if (!normalizedKind) {
     return { label: 'Unknown', implemented: false, executable: false };
   }

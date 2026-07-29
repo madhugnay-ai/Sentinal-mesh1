@@ -37,7 +37,7 @@ const categories: CategoryDefinition[] = [
     nodes: [
       { id: 'llm', label: 'LLM', description: 'Generate or reason with AI' },
       { id: 'extractor', label: 'Extractor', description: 'Extract structured data' },
-      { id: 'classifier', label: 'Classifier', description: 'Route by classification' },
+      { id: 'classifier', label: 'Classifier', description: 'Classify content semantically with AI' },
       { id: 'summarizer', label: 'Summarizer', description: 'Condense long content' },
     ],
   },

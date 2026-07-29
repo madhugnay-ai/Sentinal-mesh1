@@ -6,6 +6,8 @@ class WorkflowState(TypedDict, total=False):
     current_node: str | None
     execution_status: str
     execution_log: list[str]
+    executed_nodes: list[str]
+    skipped_nodes: list[str]
     workflow_data: dict[str, Any]
     validation_passed: bool
     errors: list[str]
@@ -31,6 +33,7 @@ class WorkflowState(TypedDict, total=False):
     email_body: str | None
     email_received_at: str | None
     input_text: str
+    workflow_status: str
     llm_output: str
     llm_provider: str
     llm_model: str
@@ -73,3 +76,14 @@ class WorkflowState(TypedDict, total=False):
     condition_field: str
     condition_operator: str
     condition_value: str
+    router_result: str
+    classification: str
+    classifier_input_field: str
+    classifier_categories: list[str]
+    classifier_provider: str
+    classifier_model: str
+    extracted_data: dict[str, Any]
+    extractor_input_field: str
+    extractor_fields: list[str]
+    extractor_provider: str
+    extractor_model: str

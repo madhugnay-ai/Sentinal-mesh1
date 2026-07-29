@@ -5,8 +5,10 @@ from typing import Any
 from collections.abc import Callable
 
 try:
+    from langgraph.constants import END
     from langgraph.graph import StateGraph
 except ModuleNotFoundError:  # pragma: no cover - fallback for test environments without langgraph installed
+    END = "END"
     StateGraph = None
 
 from agents.agent_registry import AgentRegistry
@@ -115,6 +117,9 @@ class GraphBuilder:
             "approval": "Approval",
             "purchase-order": "Purchase Order",
             "condition": "Condition",
+            "router": "Router",
+            "classifier": "Classifier",
+            "extractor": "Extractor",
             "supervisor": "Supervisor",
             "failure-detection": "Failure Detection",
             "rag-incident-memory": "RAG Incident Memory",
@@ -171,9 +176,40 @@ class GraphBuilder:
 
         def make_condition_path_fn(branches: dict[str, str]) -> Callable[[WorkflowState], str]:
             def path(state: WorkflowState) -> str:
+                if state.get("execution_status") == "no_messages":
+                    return "false"
                 if state.get("execution_status") != "completed":
-                    return "END"
-                return branches["true"] if bool(state.get("condition_result")) else branches["false"]
+                    return END
+                return "true" if bool(state.get("condition_result")) else "false"
+
+            return path
+
+        def make_router_path_fn(node_data: dict[str, Any], branches: dict[str, str]) -> Callable[[WorkflowState], str]:
+            default_route = str(node_data.get("defaultRoute") or "").strip()
+
+            def path(state: WorkflowState) -> str:
+                if state.get("execution_status") != "completed":
+                    return END
+                selected = state.get("router_result")
+                if isinstance(selected, str):
+                    if selected in branches:
+                        return selected
+                    if default_route and selected == default_route and "default" in branches:
+                        return "default"
+                return END
+
+            return path
+
+        def make_classifier_path_fn(node_data: dict[str, Any], branches: dict[str, str]) -> Callable[[WorkflowState], str]:
+            def path(state: WorkflowState) -> str:
+                if state.get("execution_status") != "completed":
+                    return END
+                selected = state.get("classification")
+                if isinstance(selected, str):
+                    normalized = selected.strip().lower()
+                    if normalized in branches:
+                        return normalized
+                return END
 
             return path
 
@@ -182,16 +218,37 @@ class GraphBuilder:
                 continue
             node_id = node.get("id")
             node_data = node.get("data") if isinstance(node.get("data"), dict) else {}
-            if node_id and isinstance(node_data, dict) and node_data.get("kind") == "condition":
-                branches = condition_outgoing.get(node_id, {})
-                if "true" not in branches or "false" not in branches:
-                    raise ValueError(
-                        f"Condition node {node_id} requires both true and false outgoing edges."
+            if node_id and isinstance(node_data, dict):
+                kind = node_data.get("kind")
+                if kind == "condition":
+                    branches = condition_outgoing.get(node_id, {})
+                    if "true" not in branches or "false" not in branches:
+                        raise ValueError(
+                            f"Condition node {node_id} requires both true and false outgoing edges."
+                        )
+                    graph.add_conditional_edges(
+                        node_id,
+                        make_condition_path_fn(branches),
+                        path_map={"true": branches["true"], "false": branches["false"], END: END},
                     )
-                graph.add_conditional_edges(
-                    node_id,
-                    make_condition_path_fn(branches),
-                )
+                elif kind == "router":
+                    branches = condition_outgoing.get(node_id, {})
+                    if not branches:
+                        raise ValueError(f"Router node {node_id} requires at least one outgoing route edge.")
+                    graph.add_conditional_edges(
+                        node_id,
+                        make_router_path_fn(node_data, branches),
+                        path_map={**{route_name: target for route_name, target in branches.items()}, END: END},
+                    )
+                elif kind == "classifier":
+                    branches = condition_outgoing.get(node_id, {})
+                    if not branches:
+                        raise ValueError(f"Classifier node {node_id} requires at least one outgoing category edge.")
+                    graph.add_conditional_edges(
+                        node_id,
+                        make_classifier_path_fn(node_data, branches),
+                        path_map={**{route_name: target for route_name, target in branches.items()}, END: END},
+                    )
 
         entry_node = node_ids[0] if node_ids else None
         if entry_node is not None:
