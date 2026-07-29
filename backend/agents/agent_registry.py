@@ -5,6 +5,7 @@ from agents.auto_healing import AutoHealingAgent
 from agents.base_agent import BaseAgent
 from agents.email_trigger import EmailTriggerAgent
 from agents.budget_validation import BudgetValidationAgent
+from agents.condition_agent import ConditionAgent
 from agents.llm_agent import LLMAgent
 from agents.send_email_agent import SendEmailAgent
 from agents.failure_detection import FailureDetectionAgent
@@ -28,6 +29,7 @@ class AgentRegistry:
             node_types.PURCHASE_ORDER: PurchaseOrderAgent(),
             "Email Trigger": EmailTriggerAgent(),
             "LLM": LLMAgent(),
+            node_types.CONDITION: ConditionAgent(),
             node_types.SEND_EMAIL: SendEmailAgent(),
             node_types.SUPERVISOR: SupervisorAgent(),
             node_types.FAILURE_DETECTION: FailureDetectionAgent(),

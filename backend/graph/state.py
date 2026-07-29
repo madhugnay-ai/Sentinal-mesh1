@@ -69,3 +69,7 @@ class WorkflowState(TypedDict, total=False):
     healing_summary: str
     healing_timestamp: str
     next_recommended_action: str
+    condition_result: bool
+    condition_field: str
+    condition_operator: str
+    condition_value: str

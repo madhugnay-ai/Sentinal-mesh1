@@ -193,6 +193,15 @@ export function useWorkflow() {
             useLlmOutput: true,
           }
         : {}),
+      ...(kind === 'condition'
+        ? {
+            field: 'email_subject',
+            operator: 'contains',
+            value: 'URGENT',
+            description: 'Evaluate a condition and branch on true/false.',
+            config: 'Field, operator, and value determine the branch.',
+          }
+        : {}),
     };
 
     const newNode: WorkflowNode = {

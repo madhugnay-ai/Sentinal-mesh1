@@ -279,8 +279,45 @@ function PropertiesPanel({ selectedNode, onUpdateNode }: PropertiesPanelProps) {
                 className="h-4 w-4 rounded border-slate-600 bg-slate-900"
               />
             </label>
-          </>
-        ) : null}
+          </>        ) : selectedNode.data.kind === 'condition' ? (
+          <>
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Field</span>
+              <input
+                value={selectedNode.data.field ?? ''}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'field', event.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Operator</span>
+              <select
+                value={selectedNode.data.operator ?? 'equals'}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'operator', event.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              >
+                <option value="equals">equals</option>
+                <option value="not_equals">not_equals</option>
+                <option value="contains">contains</option>
+                <option value="not_contains">not_contains</option>
+                <option value="greater_than">greater_than</option>
+                <option value="less_than">less_than</option>
+                <option value="greater_than_or_equal">greater_than_or_equal</option>
+                <option value="less_than_or_equal">less_than_or_equal</option>
+                <option value="exists">exists</option>
+                <option value="not_exists">not_exists</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Value</span>
+              <input
+                value={selectedNode.data.value ?? ''}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'value', event.target.value)}
+                disabled={selectedNode.data.operator === 'exists' || selectedNode.data.operator === 'not_exists'}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </label>
+          </>        ) : null}
 
         <label className="block">
           <span className="mb-1 block text-slate-400">Configuration</span>

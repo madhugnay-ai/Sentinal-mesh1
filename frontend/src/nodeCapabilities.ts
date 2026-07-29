@@ -20,6 +20,7 @@ const capabilities: Record<string, NodeCapability> = {
   approval: { label: 'Approval', implemented: true, executable: true },
   llm: { label: 'LLM', implemented: true, executable: true },
   'send-email': { label: 'Send Email', implemented: true, executable: true },
+  condition: { label: 'Condition', implemented: true, executable: true },
   extractor: { label: 'Extractor', implemented: false, executable: false },
   classifier: { label: 'Classifier', implemented: false, executable: false },
   summarizer: { label: 'Summarizer', implemented: false, executable: false },

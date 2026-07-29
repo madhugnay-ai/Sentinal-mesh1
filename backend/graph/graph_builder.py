@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from typing import Any
+from collections.abc import Callable
 
 try:
     from langgraph.graph import StateGraph
@@ -113,6 +114,7 @@ class GraphBuilder:
             "budget-validation": "Budget Validation",
             "approval": "Approval",
             "purchase-order": "Purchase Order",
+            "condition": "Condition",
             "supervisor": "Supervisor",
             "failure-detection": "Failure Detection",
             "rag-incident-memory": "RAG Incident Memory",
@@ -148,6 +150,8 @@ class GraphBuilder:
             raise RuntimeError("langgraph is not installed")
 
         graph = StateGraph(WorkflowState)
+        condition_outgoing: dict[str, dict[str, str]] = {}
+
         for node in nodes:
             if isinstance(node, dict):
                 node_id = node.get("id")
@@ -155,11 +159,39 @@ class GraphBuilder:
                     graph.add_node(node_id, self._build_node_handler(node))
 
         for edge in edges if isinstance(edges, list) else []:
-            if isinstance(edge, dict):
-                source = edge.get("source")
-                target = edge.get("target")
-                if source in node_ids and target in node_ids:
-                    graph.add_edge(source, target)
+            if not isinstance(edge, dict):
+                continue
+            source = edge.get("source")
+            target = edge.get("target")
+            source_handle = edge.get("sourceHandle")
+            if source in node_ids and target in node_ids and not source_handle:
+                graph.add_edge(source, target)
+            elif source in node_ids and target in node_ids and isinstance(source_handle, str):
+                condition_outgoing.setdefault(source, {})[source_handle] = target
+
+        def make_condition_path_fn(branches: dict[str, str]) -> Callable[[WorkflowState], str]:
+            def path(state: WorkflowState) -> str:
+                if state.get("execution_status") != "completed":
+                    return "END"
+                return branches["true"] if bool(state.get("condition_result")) else branches["false"]
+
+            return path
+
+        for node in nodes if isinstance(nodes, list) else []:
+            if not isinstance(node, dict):
+                continue
+            node_id = node.get("id")
+            node_data = node.get("data") if isinstance(node.get("data"), dict) else {}
+            if node_id and isinstance(node_data, dict) and node_data.get("kind") == "condition":
+                branches = condition_outgoing.get(node_id, {})
+                if "true" not in branches or "false" not in branches:
+                    raise ValueError(
+                        f"Condition node {node_id} requires both true and false outgoing edges."
+                    )
+                graph.add_conditional_edges(
+                    node_id,
+                    make_condition_path_fn(branches),
+                )
 
         entry_node = node_ids[0] if node_ids else None
         if entry_node is not None:

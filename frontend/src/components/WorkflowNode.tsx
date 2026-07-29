@@ -9,6 +9,7 @@ const palette: Record<string, { color: string; icon: string }> = {
   approval: { color: 'from-fuchsia-500 to-pink-600', icon: '⚑' },
   'purchase-order': { color: 'from-rose-500 to-red-600', icon: '⟡' },
   'email-trigger': { color: 'from-blue-500 to-cyan-600', icon: '✉' },
+  condition: { color: 'from-lime-500 to-emerald-600', icon: '⚖' },
 };
 
 function WorkflowNode({ data, selected }: NodeProps<WorkflowNodeData>) {
@@ -33,6 +34,14 @@ function WorkflowNode({ data, selected }: NodeProps<WorkflowNodeData>) {
       className={`min-w-[220px] rounded-2xl border p-3 shadow-xl ${stateClasses[executionState]} ${selected ? 'ring-2 ring-cyan-400' : ''}`}
     >
       <Handle type="target" position={Position.Left} className="!bg-cyan-400" />
+      {data.kind === 'condition' ? (
+        <>
+          <Handle id="true" type="source" position={Position.Right} className="!bg-emerald-400" style={{ top: '30%' }} />
+          <Handle id="false" type="source" position={Position.Right} className="!bg-rose-400" style={{ top: '70%' }} />
+        </>
+      ) : (
+        <Handle type="source" position={Position.Right} className="!bg-cyan-400" />
+      )}
       <div className="flex items-center justify-between gap-2">
         <div className={`rounded-xl bg-gradient-to-r ${style.color} px-3 py-2 text-sm font-semibold text-white`}>
           <div className="flex items-center gap-2">
@@ -49,7 +58,6 @@ function WorkflowNode({ data, selected }: NodeProps<WorkflowNodeData>) {
         <p className="mt-1 text-xs text-slate-400">{data.description}</p>
         <p className="mt-2 rounded-lg bg-slate-800/80 px-2 py-1 text-[11px] text-slate-300">{data.config}</p>
       </div>
-      <Handle type="source" position={Position.Right} className="!bg-cyan-400" />
     </div>
   );
 }

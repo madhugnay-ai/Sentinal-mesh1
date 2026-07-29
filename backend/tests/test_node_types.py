@@ -20,3 +20,6 @@ def test_node_type_constants_match_expected_values() -> None:
     assert BUDGET_VALIDATION == "Budget Validation"
     assert APPROVAL == "Approval"
     assert PURCHASE_ORDER == "Purchase Order"
+    from constants.node_types import CONDITION
+
+    assert CONDITION == "Condition"

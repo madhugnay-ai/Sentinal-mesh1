@@ -21,6 +21,9 @@ export type WorkflowNodeData = {
   subject?: string;
   body?: string;
   useLlmOutput?: boolean;
+  field?: string;
+  operator?: string;
+  value?: string;
   executionState?: 'waiting' | 'current' | 'success' | 'failed';
 };
 
@@ -39,7 +42,7 @@ export type WorkflowPayload = {
   edges: WorkflowEdge[];
 };
 
-export type WorkflowNodeField = 'label' | 'nodeType' | 'description' | 'config' | 'emailAccount' | 'folder' | 'unreadOnly' | 'subjectFilter' | 'gmailConnectionStatus' | 'provider' | 'model' | 'prompt' | 'temperature' | 'maxTokens' | 'recipientEmail' | 'subject' | 'body' | 'useLlmOutput';
+export type WorkflowNodeField = 'label' | 'nodeType' | 'description' | 'config' | 'emailAccount' | 'folder' | 'unreadOnly' | 'subjectFilter' | 'gmailConnectionStatus' | 'provider' | 'model' | 'prompt' | 'temperature' | 'maxTokens' | 'recipientEmail' | 'subject' | 'body' | 'useLlmOutput' | 'field' | 'operator' | 'value';
 
 export type WorkflowNodeValue = string | boolean | number;
 
