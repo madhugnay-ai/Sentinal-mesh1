@@ -50,6 +50,34 @@
     "recommended_action": "Select Alternate Vendor"
   },
   {
+  "incident_id": "INC-PROV-001",
+  "failure_category": "Provider",
+  "severity": "Medium",
+  "recoverable": false,
+  "symptoms": [
+    "Invalid model",
+    "404 Not Found",
+    "LLM provider request failed"
+  ],
+  "root_cause": "Invalid or unavailable LLM model configured for the provider",
+  "resolution": "Replace the invalid model with a valid model supported by the configured provider",
+  "recommended_action": "Verify the configured provider and model name before retrying the workflow"
+},
+{
+  "incident_id": "INC-WF-001",
+  "failure_category": "Workflow Failure",
+  "severity": "Medium",
+  "recoverable": true,
+  "symptoms": [
+    "404 Not Found",
+    "LLM execution failed",
+    "invalid model"
+  ],
+  "root_cause": "The workflow contains an invalid or unavailable LLM model configuration.",
+  "resolution": "Replace the invalid model with a valid model supported by the configured provider.",
+  "recommended_action": "Verify the LLM provider and model configuration, then retry the failed workflow."
+},
+  {
     "incident_id": "INC-005A",
     "failure_category": "Vendor Selection Failure",
     "severity": "Low",

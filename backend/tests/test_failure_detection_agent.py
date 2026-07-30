@@ -304,6 +304,30 @@ def test_generic_failure_without_procurement_nodes_is_classified_as_workflow_fai
     assert result["failure_details"]["failed_stage"] == "Workflow"
 
 
+def test_failure_context_classifies_provider_failures() -> None:
+    agent = FailureDetectionAgent()
+    state: WorkflowState = {
+        "workflow_health": "Failed",
+        "execution_status": "failed",
+        "errors": [],
+        "execution_log": ["Node failed"],
+        "workflow_summary": "Workflow health: Failed",
+        "failure_context": {
+            "failed_node_id": "llm-1",
+            "failed_node_type": "LLM",
+            "failure_message": "provider timeout",
+            "failure_error_type": "TimeoutError",
+            "execution_timestamp": "2026-01-01T00:00:00Z",
+        },
+    }
+
+    result = agent.execute(state)
+
+    assert result["failure_detected"] is True
+    assert result["failure_details"]["category_code"] == "timeout"
+    assert result["failure_details"]["severity_code"] == "high"
+
+
 def test_agent_registry_invokes_failure_detection_agent() -> None:
     registry = AgentRegistry()
     agent = registry.get_agent(node_types.FAILURE_DETECTION)

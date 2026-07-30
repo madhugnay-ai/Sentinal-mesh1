@@ -180,6 +180,21 @@ class SupervisorAgent(BaseAgent):
                 generic_auto_completed = True
         
 
+        failure_context = state.get("failure_context") if isinstance(state.get("failure_context"), dict) else {}
+        if failure_context and execution_status == "failed":
+            failed_node_id = str(failure_context.get("failed_node_id") or "")
+            failed_node_type = str(failure_context.get("failed_node_type") or "Unknown")
+            failure_message = str(failure_context.get("failure_message") or "")
+            failure_error_type = str(failure_context.get("failure_error_type") or "UnknownError")
+            diagnosis_parts = [
+                f"Node {failed_node_id} failed during execution",
+                f"Node type: {failed_node_type}",
+                f"Error: {failure_message}",
+                f"Exception type: {failure_error_type}",
+            ]
+            state["supervisor_diagnosis"] = " | ".join(diagnosis_parts)
+            execution_log.append(f"Supervisor diagnosis: {state['supervisor_diagnosis']}")
+
         # Precompute outgoing targets by node id and source handle.
         branch_outgoing: dict[str, dict[str, str]] = {}
         for edge in (state.get("workflow_data") or {}).get("edges", []) if isinstance((state.get("workflow_data") or {}).get("edges", []), list) else []:
@@ -371,5 +386,7 @@ class SupervisorAgent(BaseAgent):
         state["workflow_summary"] = workflow_summary
         state["supervisor_timestamp"] = datetime.now(timezone.utc).isoformat()
         state["execution_log"] = execution_log
+        if "supervisor_diagnosis" not in state:
+            state["supervisor_diagnosis"] = ""
 
         return state

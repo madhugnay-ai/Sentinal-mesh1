@@ -256,6 +256,36 @@ def test_procurement_workflow_still_reports_procurement_stages() -> None:
     assert result["skipped_stages"] == []
 
 
+def test_supervisor_generates_diagnosis_from_failure_context() -> None:
+    agent = SupervisorAgent()
+    state: WorkflowState = {
+        "execution_status": "failed",
+        "execution_log": ["Node execution failed"],
+        "errors": ["provider timeout"],
+        "current_node": "llm-1",
+        "workflow_data": {
+            "nodes": [
+                {"id": "llm-1", "type": "LLM", "data": {"kind": "llm", "label": "LLM"}},
+            ],
+            "edges": [],
+        },
+        "failure_context": {
+            "failed_node_id": "llm-1",
+            "failed_node_type": "LLM",
+            "failure_message": "provider timeout",
+            "failure_error_type": "TimeoutError",
+            "execution_timestamp": "2026-01-01T00:00:00Z",
+        },
+    }
+
+    result = agent.execute(state)
+
+    assert result["workflow_health"] == "Failed"
+    assert result["supervisor_diagnosis"]
+    assert "llm-1" in result["supervisor_diagnosis"]
+    assert "provider timeout" in result["supervisor_diagnosis"]
+
+
 def test_agent_registry_invokes_supervisor_agent() -> None:
     registry = AgentRegistry()
     agent = registry.get_agent(node_types.SUPERVISOR)

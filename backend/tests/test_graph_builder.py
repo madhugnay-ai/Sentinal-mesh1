@@ -5,6 +5,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from agents.agent_registry import AgentRegistry
 from graph.graph_builder import GraphBuilder
 
 
@@ -80,3 +81,33 @@ def test_graph_compilation_is_supported() -> None:
 
     assert compiled_graph is not None
     assert hasattr(compiled_graph, "invoke")
+
+
+def test_node_exception_is_captured_as_standardized_failure(monkeypatch) -> None:
+    class FailingAgent:
+        def execute(self, state):
+            raise RuntimeError("provider timeout")
+
+    monkeypatch.setattr(AgentRegistry, "get_agent", lambda self, node_type: FailingAgent())
+
+    builder = GraphBuilder()
+    workflow = {
+        "workflow_id": "wf-failure-capture",
+        "nodes": [{"id": "fail-node", "type": "failing-step", "data": {"kind": "failing-step"}}],
+        "edges": [],
+    }
+
+    graph = builder.build_graph(workflow)
+    result = graph.invoke({
+        "workflow_id": "wf-failure-capture",
+        "current_node": None,
+        "execution_status": "pending",
+        "execution_log": [],
+        "workflow_data": workflow,
+    })
+
+    assert result["execution_status"] == "failed"
+    assert result["failed_node_ids"] == ["fail-node"]
+    assert result["failure_context"]["failed_node_id"] == "fail-node"
+    assert result["failure_context"]["failure_message"] == "provider timeout"
+    assert result["failure_context"]["failure_error_type"] == "RuntimeError"

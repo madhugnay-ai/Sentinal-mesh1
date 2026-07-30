@@ -63,6 +63,8 @@ class WorkflowState(TypedDict, total=False):
     failure_summary: str
     failure_timestamp: str
     failure_details: dict[str, Any]
+    failure_context: dict[str, Any]
+    supervisor_diagnosis: str
     incident_matches: list[dict[str, Any]]
     recommended_resolution: str
     knowledge_base_match_count: int

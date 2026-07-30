@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from collections import deque
-from typing import Any
 from collections.abc import Callable
+from datetime import datetime, timezone
+from typing import Any
 
 try:
     from langgraph.constants import END
@@ -13,6 +14,23 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for test environments
 
 from agents.agent_registry import AgentRegistry
 from graph.state import WorkflowState
+
+
+def _safe_failure_context(state: WorkflowState, node_id: str | None, node_type: str | None, error: Exception | None = None) -> dict[str, Any]:
+    message = str(error) if error is not None else "Unknown workflow node failure"
+    error_type = type(error).__name__ if error is not None else "UnknownError"
+    return {
+        "failed_node_id": node_id,
+        "failed_node_type": node_type,
+        "failure_message": message,
+        "failure_error_type": error_type,
+        "execution_timestamp": datetime.now(timezone.utc).isoformat(),
+        "safe_context": {
+            "current_node": state.get("current_node"),
+            "execution_status": state.get("execution_status"),
+            "errors": list(state.get("errors") or []),
+        },
+    }
 
 
 class GraphBuilder:
@@ -151,7 +169,18 @@ class GraphBuilder:
                     new_state.setdefault("skipped_nodes", []).append(node_id)
                     return new_state
                 new_state.setdefault("executed_nodes", []).append(node_id)
-                return agent.execute(new_state)
+                try:
+                    return agent.execute(new_state)
+                except Exception as exc:
+                    failure_context = _safe_failure_context(new_state, node_id, node_type, exc)
+                    new_state["execution_status"] = "failed"
+                    new_state["errors"] = [str(exc)]
+                    new_state.setdefault("failed_node_ids", []).append(node_id)
+                    new_state["failure_context"] = failure_context
+                    new_state.setdefault("execution_log", []).append(
+                        f"{datetime.now(timezone.utc).isoformat()} Node failure captured: node={node_id}, error={exc}"
+                    )
+                    return new_state
 
             return handler
 
