@@ -1,4 +1,5 @@
 import type { WorkflowEdge, WorkflowNode, WorkflowPayload } from '../types/workflow';
+import { normalizeClassifierCategory } from '../utils/classifierHandles';
 
 const storageKey = 'sentinelmesh-workflow';
 
@@ -16,11 +17,23 @@ export function normalizeWorkflowEdges(nodes: WorkflowNode[], edges: WorkflowEdg
       ? sourceNode.data.categories.filter((category): category is string => typeof category === 'string' && category.trim().length > 0)
       : [];
 
-    if (sourceKind === 'classifier' && !edge.sourceHandle && categories.length > 0) {
-      return {
-        ...edge,
-        sourceHandle: categories[0].trim(),
-      };
+    if (sourceKind === 'classifier') {
+      const existingHandle = normalizeClassifierCategory(edge.sourceHandle);
+      const fallbackHandle = normalizeClassifierCategory(categories[0]);
+
+      if (existingHandle) {
+        return {
+          ...edge,
+          sourceHandle: existingHandle,
+        };
+      }
+
+      if (fallbackHandle) {
+        return {
+          ...edge,
+          sourceHandle: fallbackHandle,
+        };
+      }
     }
 
     return edge;

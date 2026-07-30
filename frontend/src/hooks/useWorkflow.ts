@@ -4,6 +4,7 @@ import { executeWorkflow, listWorkflows, saveWorkflow } from '../services/api';
 import { loadWorkflowFromStorage, saveWorkflowToStorage, exportWorkflowJson, normalizeWorkflowEdges } from '../services/workflowStorage';
 import { getNodeExecutionState, getVisualExecutionState } from './executionState';
 import type { WorkflowEdge, WorkflowExecutionResult, WorkflowNode, WorkflowNodeData, WorkflowNodeField, WorkflowNodeValue, WorkflowPayload } from '../types/workflow';
+import { normalizeClassifierCategory } from '../utils/classifierHandles';
 
 const initialNodes: WorkflowNode[] = [
   {
@@ -104,7 +105,9 @@ export function useWorkflow() {
     if (normalizedKind === 'classifier' && params.sourceHandle) {
       nextParams.sourceHandle = params.sourceHandle;
     } else if (normalizedKind === 'classifier' && !params.sourceHandle) {
-      const fallbackHandle = sourceNode?.data?.categories?.find((category) => category?.trim())?.trim();
+      const fallbackHandle = sourceNode?.data?.categories
+        ?.map((category) => normalizeClassifierCategory(category))
+        .find(Boolean);
       if (fallbackHandle) {
         nextParams.sourceHandle = fallbackHandle;
       }

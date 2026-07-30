@@ -86,6 +86,20 @@ class GraphBuilder:
 
         return errors
 
+    def _normalize_categories(self, categories: Any) -> list[str]:
+        if isinstance(categories, str):
+            parsed = [item.strip() for item in categories.split(",") if item.strip()]
+            return [category.lower() for category in parsed]
+        if isinstance(categories, list):
+            normalized = []
+            for category in categories:
+                if isinstance(category, str):
+                    cleaned = category.strip()
+                    if cleaned:
+                        normalized.append(cleaned.lower())
+            return normalized
+        return []
+
     def _build_placeholder_node(self, node_id: str) -> Any:
         def placeholder(state: WorkflowState) -> WorkflowState:
             state["current_node"] = node_id
@@ -245,6 +259,15 @@ class GraphBuilder:
                     branches = condition_outgoing.get(node_id, {})
                     if not branches:
                         raise ValueError(f"Classifier node {node_id} requires at least one outgoing category edge.")
+
+                    configured_categories = self._normalize_categories(node_data.get("categories"))
+                    if configured_categories:
+                        missing_categories = [category for category in configured_categories if category not in branches]
+                        if missing_categories:
+                            raise ValueError(
+                                f"Classifier node {node_id} requires outgoing edge for category '{missing_categories[0]}'."
+                            )
+
                     graph.add_conditional_edges(
                         node_id,
                         make_classifier_path_fn(node_data, branches),

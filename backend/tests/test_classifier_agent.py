@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from agents.agent_registry import AgentRegistry
@@ -197,6 +199,31 @@ def test_classifier_agent_handles_provider_failure(monkeypatch) -> None:
 
     assert result["execution_status"] == "failed"
     assert any("provider unavailable" in error for error in result["errors"])
+
+
+def test_classifier_graph_builder_requires_edges_for_all_configured_categories() -> None:
+    builder = GraphBuilder()
+    workflow = {
+        "workflow_id": "wf-classifier-missing-edge",
+        "nodes": [
+            {
+                "id": "classifier1",
+                "data": {
+                    "kind": "classifier",
+                    "inputField": "input_text",
+                    "categories": ["critical", "support"],
+                },
+            },
+            {"id": "critical_target", "data": {"kind": "send-email"}},
+            {"id": "support_target", "data": {"kind": "send-email"}},
+        ],
+        "edges": [
+            {"source": "classifier1", "sourceHandle": "critical", "target": "critical_target"},
+        ],
+    }
+
+    with pytest.raises(ValueError, match="requires outgoing edge for category 'support'"):
+        builder.build_graph(workflow)
 
 
 def test_classifier_graph_builder_executes_only_selected_branch(monkeypatch) -> None:

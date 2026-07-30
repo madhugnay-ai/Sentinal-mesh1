@@ -4,9 +4,13 @@ export type ClassifierHandleDefinition = {
   top: string;
 };
 
+export function normalizeClassifierCategory(category?: unknown): string {
+  return typeof category === 'string' ? category.trim().toLowerCase() : '';
+}
+
 export function getClassifierHandleDefinitions(categories?: string[] | null): ClassifierHandleDefinition[] {
   const normalizedCategories = (categories ?? [])
-    .map((category) => (typeof category === 'string' ? category.trim() : ''))
+    .map((category) => normalizeClassifierCategory(category))
     .filter(Boolean);
 
   return normalizedCategories.map((category, index) => ({
