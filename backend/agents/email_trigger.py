@@ -17,6 +17,35 @@ class EmailTriggerAgent(BaseAgent):
         self.node_id = node_id
         self._gmail_service = GmailService()
 
+    def _get_timestamp_value(self, message: dict[str, Any]) -> int | None:
+        for key in ("timestamp_ms", "internalDate", "received_at", "receivedTime"):
+            value = message.get(key)
+            if isinstance(value, bool):
+                continue
+            if isinstance(value, (int, float)):
+                return int(value)
+            if isinstance(value, str):
+                stripped = value.strip()
+                if not stripped:
+                    continue
+                if stripped.isdigit():
+                    return int(stripped)
+        return None
+
+    def _select_newest_message(self, messages: list[dict[str, Any]]) -> dict[str, Any] | None:
+        timestamped_messages = [message for message in messages if self._get_timestamp_value(message) is not None]
+        if timestamped_messages:
+            return max(timestamped_messages, key=lambda message: self._get_timestamp_value(message) or 0)
+
+        fallback_messages = [message for message in messages if isinstance(message, dict)]
+        if not fallback_messages:
+            return None
+
+        return max(
+            fallback_messages,
+            key=lambda message: str(message.get("received_at") or message.get("receivedTime") or message.get("internalDate") or ""),
+        )
+
     def _fetch_emails(self, config: dict[str, Any]) -> list[dict[str, Any]]:
         if not self._gmail_service.client_id or not self._gmail_service.client_secret:
             raise ValueError("Google OAuth credentials are not configured")
@@ -101,7 +130,9 @@ class EmailTriggerAgent(BaseAgent):
                 "recipient": message.get("recipient") or "",
                 "subject": message.get("subject") or "",
                 "body": message.get("body") or "",
-                "received_at": message.get("received_at") or message.get("receivedTime") or "",
+                "received_at": message.get("received_at") or message.get("receivedTime") or message.get("internalDate") or "",
+                "internalDate": message.get("internalDate") or message.get("received_at") or message.get("receivedTime") or "",
+                "timestamp_ms": self._get_timestamp_value(message),
                 "unread": unread,
             }
             if (
@@ -116,24 +147,27 @@ class EmailTriggerAgent(BaseAgent):
         state["email_messages"] = filtered_messages
         state["email_trigger_config"] = config
         if filtered_messages:
-            # select the newest message by received_at
-            selected_message = max(
-                filtered_messages,
-                key=lambda message: str(message.get("received_at") or ""),
-            )
+            selected_message = self._select_newest_message(filtered_messages)
+            if selected_message is None:
+                selected_message = filtered_messages[0]
             body_text = selected_message.get("body") or ""
+            selected_timestamp = str(
+                selected_message.get("internalDate")
+                or selected_message.get("received_at")
+                or selected_message.get("receivedTime")
+                or ""
+            )
             state["email_message_id"] = selected_message.get("message_id")
             state["email_sender"] = selected_message.get("sender")
             state["email_recipient"] = selected_message.get("recipient")
             state["email_subject"] = selected_message.get("subject")
             state["email_body"] = body_text
-            state["email_received_at"] = selected_message.get("received_at") or ""
+            state["email_received_at"] = selected_timestamp
             state["input_text"] = body_text
-            # safe diagnostic: do not log bodies, only lengths
             body_chars = len(body_text)
             input_chars = len(str(state.get("input_text") or ""))
             state.setdefault("execution_log", []).append(
-                f"{datetime.now(timezone.utc).isoformat()} Email trigger selected 1 email for processing: body_chars={body_chars} input_chars={input_chars}"
+                f"{datetime.now(timezone.utc).isoformat()} Email trigger matched: {len(filtered_messages)}; Selected subject: {selected_message.get('subject') or ''}; Selected internalDate/timestamp: {selected_timestamp}; body_chars={body_chars}; input_chars={input_chars}"
             )
         else:
             state["email_message_id"] = None
@@ -144,7 +178,7 @@ class EmailTriggerAgent(BaseAgent):
             state["email_received_at"] = None
             state["input_text"] = ""
             state.setdefault("execution_log", []).append(
-                f"{datetime.now(timezone.utc).isoformat()} Email trigger found no matching messages."
+                f"{datetime.now(timezone.utc).isoformat()} Email trigger matched: 0; Selected subject: <none>; Selected internalDate/timestamp: <none>; body_chars=0; input_chars=0"
             )
 
         state["execution_status"] = "received" if filtered_messages else "no_messages"

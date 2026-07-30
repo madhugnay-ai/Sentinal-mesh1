@@ -59,6 +59,79 @@ def test_condition_equals_false() -> None:
     assert result["execution_status"] == "completed"
 
 
+def test_condition_equals_is_case_insensitive() -> None:
+    agent = ConditionAgent()
+    workflow = {"nodes": [build_condition_node("equals", "critical", "urgency")], "edges": []}
+    state = make_state("condition1", workflow, {"urgency": "Critical"})
+
+    result = agent.execute(state)
+
+    assert result["condition_result"] is True
+
+
+def test_condition_not_equals_is_case_insensitive() -> None:
+    agent = ConditionAgent()
+    workflow = {"nodes": [build_condition_node("not_equals", "critical", "urgency")], "edges": []}
+    state = make_state("condition1", workflow, {"urgency": "Critical"})
+
+    result = agent.execute(state)
+
+    assert result["condition_result"] is False
+
+
+def test_condition_contains_is_case_insensitive() -> None:
+    agent = ConditionAgent()
+    workflow = {"nodes": [build_condition_node("contains", "payment", "email_subject")], "edges": []}
+    state = make_state("condition1", workflow, {"email_subject": "Critical Payment Outage"})
+
+    result = agent.execute(state)
+
+    assert result["condition_result"] is True
+
+
+def test_condition_numeric_comparison_still_uses_numbers() -> None:
+    agent = ConditionAgent()
+    workflow = {"nodes": [build_condition_node("greater_than", "2", "score")], "edges": []}
+    state = make_state("condition1", workflow, {"score": 10})
+
+    result = agent.execute(state)
+
+    assert result["condition_result"] is True
+
+
+def test_extractor_output_field_is_resolved_for_condition(monkeypatch) -> None:
+    import agents.extractor_agent as extractor_agent
+
+    class FakeProvider:
+        def generate_text(self, prompt, input_text, model, temperature, max_tokens, api_key=None):
+            return '{"priority": "HIGH"}'
+
+    monkeypatch.setattr(extractor_agent, "GroqProvider", FakeProvider)
+
+    builder = GraphBuilder()
+    workflow = {
+        "workflow_id": "wf-extractor-condition",
+        "nodes": [
+            {"id": "extractor1", "data": {"kind": "extractor", "extractionFields": ["priority"], "inputField": "input_text"}},
+            {"id": "condition1", "data": {"kind": "condition", "field": "priority", "operator": "equals", "value": "high"}},
+            {"id": "true_target", "data": {"kind": "send-email"}},
+            {"id": "false_target", "data": {"kind": "send-email"}},
+        ],
+        "edges": [
+            {"source": "extractor1", "target": "condition1"},
+            {"source": "condition1", "sourceHandle": "true", "target": "true_target"},
+            {"source": "condition1", "sourceHandle": "false", "target": "false_target"},
+        ],
+    }
+    state = make_state("extractor1", workflow, {"input_text": "Escalation details"})
+
+    final_state = builder.build_graph(workflow).invoke(state)
+
+    assert final_state["condition_result"] is True
+    assert "true_target" in final_state.get("executed_nodes", [])
+    assert "false_target" not in final_state.get("executed_nodes", [])
+
+
 def test_condition_contains() -> None:
     agent = ConditionAgent()
     workflow = {"nodes": [build_condition_node("contains", "URGENT")], "edges": []}

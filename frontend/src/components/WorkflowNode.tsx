@@ -15,6 +15,7 @@ const palette: Record<string, { color: string; icon: string }> = {
   router: { color: 'from-amber-500 to-yellow-600', icon: '🔀' },
   classifier: { color: 'from-purple-500 to-fuchsia-600', icon: '🧠' },
   extractor: { color: 'from-indigo-500 to-blue-600', icon: '🧩' },
+  summarizer: { color: 'from-teal-500 to-emerald-600', icon: '📝' },
 };
 
 function WorkflowNode({ data, selected }: NodeProps<WorkflowNodeData>) {

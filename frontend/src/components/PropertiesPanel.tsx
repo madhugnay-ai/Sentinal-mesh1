@@ -467,6 +467,76 @@ function PropertiesPanel({ selectedNode, onUpdateNode }: PropertiesPanelProps) {
           </>
         ) : null}
 
+        {normalizedKind === 'summarizer' ? (
+          <>
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Provider</span>
+              <select
+                value={selectedNode.data.provider || 'Groq'}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'provider', event.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              >
+                <option value="OpenAI">OpenAI</option>
+                <option value="Gemini">Gemini</option>
+                <option value="Groq">Groq</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Model</span>
+              <input
+                value={selectedNode.data.model || ''}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'model', event.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Input Field</span>
+              <select
+                value={selectedNode.data.inputField || 'email_subject_and_body'}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'inputField', event.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              >
+                <option value="email_subject">Email Subject</option>
+                <option value="email_body">Email Body</option>
+                <option value="email_subject_and_body">Email Subject + Body</option>
+                <option value="input">Current Input</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Instructions / Prompt</span>
+              <textarea
+                value={selectedNode.data.instructions || ''}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'instructions', event.target.value)}
+                className="min-h-24 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Temperature</span>
+              <input
+                type="number"
+                step="0.1"
+                value={selectedNode.data.temperature ?? 0.2}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'temperature', Number(event.target.value))}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-slate-400">Max Tokens</span>
+              <input
+                type="number"
+                value={selectedNode.data.maxTokens ?? 256}
+                onChange={(event) => onUpdateNode(selectedNode.id, 'maxTokens', Number(event.target.value))}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+              />
+            </label>
+          </>
+        ) : null}
+
         {selectedNode.data.kind === 'send-email' ? (
           <>
             <label className="block">

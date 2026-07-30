@@ -33,7 +33,7 @@ const capabilities: Record<string, NodeCapability> = {
   router: { label: 'Router', implemented: true, executable: true },
   extractor: { label: 'Extractor', implemented: true, executable: true },
   classifier: { label: 'Classifier', implemented: true, executable: true },
-  summarizer: { label: 'Summarizer', implemented: false, executable: false },
+  summarizer: { label: 'Summarizer', implemented: true, executable: true },
   scheduler: { label: 'Scheduler', implemented: false, executable: false },
   webhook: { label: 'Webhook', implemented: false, executable: false },
   'file-upload': { label: 'File Upload', implemented: false, executable: false },

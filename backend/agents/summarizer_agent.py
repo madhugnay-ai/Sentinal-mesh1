@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -10,7 +8,7 @@ from agents.llm_agent import GeminiProvider, GroqProvider, OpenAIProvider
 from graph.state import WorkflowState
 
 
-class ExtractorAgent(BaseAgent):
+class SummarizerAgent(BaseAgent):
     def _get_provider(self, provider_name: str):
         providers = {
             "OpenAI": OpenAIProvider(),
@@ -29,13 +27,6 @@ class ExtractorAgent(BaseAgent):
                 if isinstance(data, dict):
                     return data
         return None
-
-    def _normalize_fields(self, fields: Any) -> list[str]:
-        if isinstance(fields, str):
-            return [item.strip() for item in fields.split(",") if item.strip()]
-        if isinstance(fields, list):
-            return [str(item).strip() for item in fields if str(item).strip()]
-        return []
 
     def _set_failure_state(self, state: WorkflowState, errors: list[str] | str, log_message: str) -> WorkflowState:
         state["errors"] = [errors] if isinstance(errors, str) else list(errors)
@@ -73,113 +64,57 @@ class ExtractorAgent(BaseAgent):
             return str(state["email_body"])
         return ""
 
-    def _build_prompt(self, fields: list[str], instructions: str) -> str:
-        field_list = ", ".join(fields)
-        base_prompt = instructions or "Extract the requested fields into a structured JSON object."
-        return (
-            f"{base_prompt}\n\n"
-            f"Requested fields: {field_list}\n"
-            "Return ONLY valid JSON with string values when possible."
-        )
-
-    def _parse_json(self, response_text: str) -> dict[str, Any]:
-        text = (response_text or "").strip()
-        if not text:
-            raise ValueError("Invalid JSON: empty response")
-
-        candidates: list[str] = []
-        fenced_blocks = re.findall(r"```(?:json|javascript|js|python)?\s*(.*?)\s*```", text, flags=re.IGNORECASE | re.DOTALL)
-        for block in fenced_blocks:
-            cleaned = block.strip()
-            if cleaned:
-                candidates.append(cleaned)
-
-        if not candidates:
-            candidates.append(text)
-
-        for candidate in candidates:
-            try:
-                payload = json.loads(candidate)
-            except json.JSONDecodeError:
-                pass
-            else:
-                if isinstance(payload, dict):
-                    return payload
-
-            decoder = json.JSONDecoder()
-            for index, character in enumerate(candidate):
-                if character not in "[{":
-                    continue
-                try:
-                    payload, _ = decoder.raw_decode(candidate[index:])
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(payload, dict):
-                    return payload
-
-        raise ValueError("Invalid JSON: unable to parse model response")
+    def _build_prompt(self, instructions: str) -> str:
+        return instructions or "Summarize the incoming content clearly and concisely. Preserve the important facts, issue, impact, and requested action. Do not invent information."
 
     def execute(self, state: WorkflowState) -> WorkflowState:
         config = self._get_node_config(state)
         if config is None:
             return self._set_failure_state(
                 state,
-                ["Extractor node configuration missing."],
-                f"{datetime.now(timezone.utc).isoformat()} Extractor node configuration missing.",
+                ["Summarizer node configuration missing."],
+                f"{datetime.now(timezone.utc).isoformat()} Summarizer node configuration missing.",
             )
 
         if state.get("execution_status") == "no_messages":
             state.setdefault("execution_log", []).append(
-                f"{datetime.now(timezone.utc).isoformat()} Extractor skipped due to no_messages."
+                f"{datetime.now(timezone.utc).isoformat()} Summarizer skipped due to no_messages."
             )
             state.setdefault("skipped_nodes", []).append(state.get("current_node", "unknown"))
             return state
-
-        fields = self._normalize_fields(config.get("extractionFields") or config.get("fields") or config.get("extraction_fields"))
-        if not fields:
-            return self._set_failure_state(
-                state,
-                ["At least one extraction field is required."],
-                f"{datetime.now(timezone.utc).isoformat()} Extractor failed: at least one extraction field is required.",
-            )
 
         input_field = str(config.get("inputField") or config.get("input_field") or "email_subject_and_body")
         input_text = self._resolve_input_text(state, input_field)
         if not str(input_text or "").strip():
             return self._set_failure_state(
                 state,
-                ["No input available to extract."],
-                f"{datetime.now(timezone.utc).isoformat()} Extractor failed: no input available.",
+                ["No input available to summarize."],
+                f"{datetime.now(timezone.utc).isoformat()} Summarizer failed: no input available.",
             )
 
         provider_name = str(config.get("provider") or "Groq")
         model = str(config.get("model") or "llama-3.1-8b-instant")
-        temperature = float(config.get("temperature") or 0.0)
+        temperature = float(config.get("temperature") or 0.2)
         max_tokens = int(config.get("maxTokens") or 256)
         api_key = config.get("apiKey")
-        prompt = self._build_prompt(fields, str(config.get("instructions") or "Extract the requested fields into a structured JSON object."))
+        prompt = self._build_prompt(str(config.get("instructions") or "Summarize the incoming content clearly and concisely. Preserve the important facts, issue, impact, and requested action. Do not invent information."))
 
         try:
             provider = self._get_provider(provider_name)
             response_text = provider.generate_text(prompt, input_text, model, temperature, max_tokens, api_key)
-            parsed_payload = self._parse_json(response_text)
         except Exception as exc:  # pragma: no cover - defensive for runtime/provider failures
             return self._set_failure_state(
                 state,
                 [str(exc)],
-                f"{datetime.now(timezone.utc).isoformat()} Extractor execution failed: {exc}",
+                f"{datetime.now(timezone.utc).isoformat()} Summarizer execution failed: {exc}",
             )
 
-        filtered_payload = {
-            key: value for key, value in parsed_payload.items() if str(key).strip() in {field.strip() for field in fields}
-        }
-        state["extracted_data"] = filtered_payload
-        state["extractor_input_field"] = input_field
-        state["extractor_fields"] = fields
-        state["extractor_provider"] = provider_name
-        state["extractor_model"] = model
+        state["summary"] = str(response_text or "")
+        state["summary_input_field"] = input_field
+        state["summary_provider"] = provider_name
+        state["summary_model"] = model
         state["execution_status"] = "completed"
         state.setdefault("execution_log", []).append(
-            f"{datetime.now(timezone.utc).isoformat()} Extractor completed: fields={','.join(fields)}"
+            f"{datetime.now(timezone.utc).isoformat()} Summarizer completed using {provider_name} ({model})."
         )
         return state

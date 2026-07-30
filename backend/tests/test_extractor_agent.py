@@ -120,6 +120,24 @@ def test_extractor_respects_configured_fields(monkeypatch) -> None:
     assert list(result["extracted_data"].keys()) == ["service", "urgency"]
 
 
+def test_extractor_parses_markdown_fenced_json(monkeypatch) -> None:
+    import agents.extractor_agent as extractor_agent
+
+    monkeypatch.setattr(
+        extractor_agent.GroqProvider,
+        "generate_text",
+        lambda self, prompt, input_text, model, temperature, max_tokens, api_key=None: '```json\n{"service": "payment service", "status": "unavailable"}\n```',
+    )
+
+    workflow = {"nodes": [build_extractor_node(extraction_fields=["service", "status"])], "edges": []}
+    state = make_state("extractor1", workflow, {"input_text": "Payment service outage"})
+
+    result = ExtractorAgent().execute(state)
+
+    assert result["execution_status"] == "completed"
+    assert result["extracted_data"] == {"service": "payment service", "status": "unavailable"}
+
+
 def test_extractor_handles_invalid_json(monkeypatch) -> None:
     import agents.extractor_agent as extractor_agent
 
@@ -136,6 +154,7 @@ def test_extractor_handles_invalid_json(monkeypatch) -> None:
 
     assert result["execution_status"] == "failed"
     assert any("Invalid JSON" in error for error in result["errors"])
+    assert result.get("failed_node_ids") == ["extractor1"]
 
 
 def test_extractor_skips_on_no_messages(monkeypatch) -> None:
@@ -192,4 +211,6 @@ def test_extractor_workflow_service_exposes_extracted_data(monkeypatch) -> None:
     result = service.execute_workflow(created.workflow_id)
 
     assert result["extracted_data"]["service"] == "payment service"
+    assert set(result["extracted_data"].keys()) == {"service", "status"}
     assert result["execution_status"] == "completed"
+    assert result["extractor_fields"] == ["service", "status", "location", "urgency"]

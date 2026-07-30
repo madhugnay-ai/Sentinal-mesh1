@@ -193,6 +193,16 @@ export function useWorkflow() {
             maxTokens: 256,
           }
         : {}),
+      ...(kind === 'summarizer'
+        ? {
+            provider: 'Groq',
+            model: 'llama-3.1-8b-instant',
+            inputField: 'email_subject_and_body',
+            instructions: 'Summarize the incoming content clearly and concisely. Preserve the important facts, issue, impact, and requested action. Do not invent information.',
+            temperature: 0.2,
+            maxTokens: 256,
+          }
+        : {}),
       ...(kind === 'condition'
         ? {
             field: 'email_subject',

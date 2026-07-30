@@ -16,6 +16,7 @@ from agents.inventory import InventoryAgent
 from agents.purchase_order import PurchaseOrderAgent
 from agents.rag_incident_memory import RAGIncidentMemoryAgent
 from agents.requirement_validation import RequirementValidationAgent
+from agents.summarizer_agent import SummarizerAgent
 from agents.supervisor import SupervisorAgent
 from agents.vendor_selection import VendorSelectionAgent
 from constants import node_types
@@ -36,6 +37,7 @@ class AgentRegistry:
             node_types.ROUTER: RouterAgent(),
             node_types.CLASSIFIER: ClassifierAgent(),
             node_types.EXTRACTOR: ExtractorAgent(),
+            node_types.SUMMARIZER: SummarizerAgent(),
             node_types.SEND_EMAIL: SendEmailAgent(),
             node_types.SUPERVISOR: SupervisorAgent(),
             node_types.FAILURE_DETECTION: FailureDetectionAgent(),

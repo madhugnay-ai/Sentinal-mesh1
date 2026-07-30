@@ -34,6 +34,27 @@ class SupervisorAgent(BaseAgent):
                 stage_names.append(str(label))
         return stage_names
 
+    def _display_label(self, node: dict[str, Any]) -> str:
+        node_data = node.get("data") if isinstance(node.get("data"), dict) else {}
+        label = node_data.get("label")
+        if isinstance(label, str) and label.strip():
+            return label.strip()
+
+        kind = node_data.get("kind") or node.get("type")
+        if isinstance(kind, str) and kind.strip():
+            return " ".join(part.capitalize() for part in kind.replace("_", "-").split("-"))
+
+        return str(node.get("id") or node.get("type") or "Node")
+
+    def _is_generic_execution_node(self, node: dict[str, Any]) -> bool:
+        node_data = node.get("data") if isinstance(node.get("data"), dict) else {}
+        node_kind = node_data.get("kind") or node.get("type")
+        if node_kind in {None, "supervisor", "Supervisor", "failure-detection", "Failure Detection", "rag-incident-memory", "RAG Incident Memory", "auto-healing", "Auto Healing"}:
+            return False
+        if node_kind in {"requirement-validation", "Requirement Validation", "inventory", "Inventory", "vendor-selection", "Vendor Selection", "budget-validation", "Budget Validation", "approval", "Approval", "purchase-order", "Purchase Order"}:
+            return False
+        return True
+
     def _stage_key(self, node_kind: str | None) -> str | None:
         if node_kind is None:
             return None
@@ -113,9 +134,7 @@ class SupervisorAgent(BaseAgent):
 
         generic_nodes: list[dict[str, Any]] = []
         for node in self._workflow_nodes(state):
-            node_data = node.get("data") if isinstance(node.get("data"), dict) else {}
-            node_kind = node_data.get("kind") or node.get("type")
-            if node_kind in {"email-trigger", "Email Trigger", "condition", "Condition", "router", "Router", "classifier", "Classifier", "llm", "LLM", "send-email", "Send Email"}:
+            if self._is_generic_execution_node(node):
                 generic_nodes.append(node)
         
 
@@ -177,7 +196,7 @@ class SupervisorAgent(BaseAgent):
                 # we've already recorded completions for generic nodes
                 break
             node_data = node.get("data") if isinstance(node.get("data"), dict) else {}
-            label = node_data.get("label") or node.get("id") or node.get("type")
+            label = self._display_label(node)
             node_id = node.get("id")
             # Special-case Condition nodes: mark only the taken branch completed
             if node_data.get("kind") in {"condition", "Condition"}:
@@ -193,12 +212,10 @@ class SupervisorAgent(BaseAgent):
                 for handle, target in branches.items():
                     if not target:
                         continue
-                    # find target label
                     target_label = None
                     for n in generic_nodes:
                         if n.get("id") == target:
-                            td = n.get("data") if isinstance(n.get("data"), dict) else {}
-                            target_label = td.get("label") or n.get("id") or n.get("type")
+                            target_label = self._display_label(n)
                             break
                     if target == taken:
                         if target not in marked_nodes:
@@ -224,8 +241,7 @@ class SupervisorAgent(BaseAgent):
                     target_label = None
                     for n in generic_nodes:
                         if n.get("id") == target:
-                            td = n.get("data") if isinstance(n.get("data"), dict) else {}
-                            target_label = td.get("label") or n.get("id") or n.get("type")
+                            target_label = self._display_label(n)
                             break
                     if target == taken:
                         if target not in marked_nodes:

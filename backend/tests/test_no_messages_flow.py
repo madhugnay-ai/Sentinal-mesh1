@@ -34,7 +34,7 @@ def test_no_messages_prevents_downstream(monkeypatch) -> None:
     # Ensure EmailTrigger logged the no-messages condition and that downstream agents did not produce output keys
     exec_log = result.get("execution_log", [])
 
-    assert any("found no matching messages" in entry for entry in exec_log)
+    assert any("Email trigger matched: 0" in entry for entry in exec_log)
     # downstream agents should not have produced outputs like llm_output or email_sent
     assert "llm_output" not in result
     assert "email_sent" not in result

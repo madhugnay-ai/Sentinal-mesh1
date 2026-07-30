@@ -120,6 +120,7 @@ class GraphBuilder:
             "router": "Router",
             "classifier": "Classifier",
             "extractor": "Extractor",
+            "summarizer": "Summarizer",
             "supervisor": "Supervisor",
             "failure-detection": "Failure Detection",
             "rag-incident-memory": "RAG Incident Memory",

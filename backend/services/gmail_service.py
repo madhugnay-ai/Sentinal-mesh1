@@ -260,15 +260,31 @@ class GmailService:
             # never fail normalization due to diagnostics
             pass
 
+        internal_date = payload.get("internalDate")
         return {
             "message_id": payload.get("id"),
             "sender": headers.get("from", ""),
             "recipient": headers.get("to", ""),
             "subject": headers.get("subject", ""),
             "body": body,
-            "received_at": payload.get("internalDate"),
+            "received_at": internal_date,
+            "internalDate": internal_date,
+            "timestamp_ms": self._normalize_timestamp_ms(internal_date),
             "unread": True,
         }
+
+    def _normalize_timestamp_ms(self, value: Any) -> int | None:
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return None
+            if stripped.isdigit():
+                return int(stripped)
+        return None
 
     def _extract_plain_text_body(self, payload: dict[str, Any]) -> str:
         if not isinstance(payload, dict):

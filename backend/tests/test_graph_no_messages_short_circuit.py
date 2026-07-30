@@ -68,7 +68,7 @@ def test_no_messages_short_circuit(monkeypatch) -> None:
     final_state = graph.invoke(initial_state)
 
     # Email trigger should have recorded the no-messages log
-    assert any("found no matching messages" in e for e in final_state.get("execution_log", []))
+    assert any("Email trigger matched: 0" in e for e in final_state.get("execution_log", []))
     # Downstream agents must NOT have been called
     assert dummy_llm.called is False
     assert dummy_send.called is False

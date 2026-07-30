@@ -26,6 +26,7 @@ class WorkflowExecutionResponse(BaseModel):
     recommended_resolution: str
     healing_strategy: str
     healing_status: str
+    node_outputs: list[dict] = []
     execution_log: list[str]
 
 

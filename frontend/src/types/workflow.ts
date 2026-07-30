@@ -113,6 +113,13 @@ export type WorkflowExecutionResult = {
   recommended_resolution: string;
   healing_strategy: string;
   healing_status: string;
+  node_outputs?: Array<{
+    node_id?: string | null;
+    node_type?: string;
+    outputs: Record<string, unknown>;
+  }>;
+  classification?: string | null;
   extracted_data?: Record<string, unknown> | null;
+  summary?: string | null;
   execution_log: string[];
 };

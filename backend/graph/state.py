@@ -8,6 +8,7 @@ class WorkflowState(TypedDict, total=False):
     execution_log: list[str]
     executed_nodes: list[str]
     skipped_nodes: list[str]
+    failed_node_ids: list[str]
     workflow_data: dict[str, Any]
     validation_passed: bool
     errors: list[str]
@@ -87,3 +88,7 @@ class WorkflowState(TypedDict, total=False):
     extractor_fields: list[str]
     extractor_provider: str
     extractor_model: str
+    summary: str
+    summary_input_field: str
+    summary_provider: str
+    summary_model: str

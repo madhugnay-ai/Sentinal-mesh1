@@ -173,6 +173,30 @@ def test_successful_multi_node_generic_workflow_reports_all_completed_stages() -
     assert result["skipped_stages"] == []
 
 
+def test_successful_downstream_node_is_reported_in_completed_stages() -> None:
+    agent = SupervisorAgent()
+    state: WorkflowState = {
+        "execution_status": "completed",
+        "execution_log": ["Email trigger selected 1 email for processing.", "Extractor completed."],
+        "errors": [],
+        "workflow_data": {
+            "nodes": [
+                {"id": "email-1", "type": "email-trigger", "data": {"kind": "email-trigger", "label": "Email Trigger"}},
+                {"id": "extractor-1", "type": "extractor", "data": {"kind": "extractor"}},
+            ],
+            "edges": [],
+        },
+        "executed_nodes": ["email-1", "extractor-1"],
+    }
+
+    result = agent.execute(state)
+
+    assert result["workflow_health"] == "Healthy"
+    assert result["completed_stages"] == ["Email Trigger", "Extractor"]
+    assert result["failed_stages"] == []
+    assert result["skipped_stages"] == []
+
+
 def test_failed_generic_node_reports_failed_stage_and_progress() -> None:
     agent = SupervisorAgent()
     state: WorkflowState = {

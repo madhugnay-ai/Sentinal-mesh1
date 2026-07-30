@@ -100,9 +100,41 @@ def test_email_trigger_agent_selects_newest_matching_email(monkeypatch) -> None:
     assert result["email_body"] == "Newest message"
     assert result["input_text"] == "Newest message"
     assert result["execution_status"] == "received"
-    assert any("selected 1 email for processing" in entry for entry in result["execution_log"]) or any(
-        "selected 1 email for processing" in entry for entry in result.get("execution_log", [])
+    assert any("Email trigger matched:" in entry for entry in result["execution_log"]) or any(
+        "Email trigger matched:" in entry for entry in result.get("execution_log", [])
     )
+
+
+def test_email_trigger_agent_prefers_gmail_internal_date_over_api_order(monkeypatch) -> None:
+    agent = EmailTriggerAgent()
+    messages = [
+        {
+            "message_id": "msg-older",
+            "sender": "ops@example.com",
+            "recipient": "demo@example.com",
+            "subject": "Invoice ready",
+            "body": "Older message",
+            "internalDate": "1710000000000",
+            "unread": True,
+        },
+        {
+            "message_id": "msg-newer",
+            "sender": "ops@example.com",
+            "recipient": "demo@example.com",
+            "subject": "Invoice ready",
+            "body": "Newest message",
+            "internalDate": "1720000000000",
+            "unread": True,
+        },
+    ]
+
+    monkeypatch.setattr(agent, "_fetch_emails", lambda config: messages)
+
+    result = agent.execute(_build_state())
+
+    assert result["email_message_id"] == "msg-newer"
+    assert result["email_body"] == "Newest message"
+    assert any("Selected subject: Invoice ready" in entry for entry in result["execution_log"])
 
 
 def test_email_trigger_agent_only_sets_one_input_text_value(monkeypatch) -> None:

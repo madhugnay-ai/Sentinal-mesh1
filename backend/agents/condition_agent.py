@@ -36,7 +36,24 @@ class ConditionAgent(BaseAgent):
         return None
 
     def _resolve_field_value(self, field: str, state: WorkflowState) -> Any:
-        return state.get(field)
+        if not field:
+            return None
+
+        if field in state:
+            return state.get(field)
+
+        extracted_data = state.get("extracted_data")
+        if isinstance(extracted_data, dict) and field in extracted_data:
+            return extracted_data.get(field)
+
+        nested_data = state.get("workflow_data")
+        if isinstance(nested_data, dict):
+            for candidate_key in ("extracted_data", "output", "data"):
+                nested_value = nested_data.get(candidate_key)
+                if isinstance(nested_value, dict) and field in nested_value:
+                    return nested_value.get(field)
+
+        return None
 
     def _to_number(self, value: Any) -> float | None:
         try:
@@ -53,17 +70,22 @@ class ConditionAgent(BaseAgent):
         if field_value is None:
             return False
 
-        field_text = str(field_value)
-        compare_text = str(compare_value)
+        if operator in {"equals", "not_equals", "contains", "not_contains"}:
+            if isinstance(field_value, str) and isinstance(compare_value, str):
+                field_text = field_value.casefold()
+                compare_text = compare_value.casefold()
+            else:
+                field_text = str(field_value)
+                compare_text = str(compare_value)
 
-        if operator == "equals":
-            return field_text == compare_text
-        if operator == "not_equals":
-            return field_text != compare_text
-        if operator == "contains":
-            return compare_text in field_text
-        if operator == "not_contains":
-            return compare_text not in field_text
+            if operator == "equals":
+                return field_text == compare_text
+            if operator == "not_equals":
+                return field_text != compare_text
+            if operator == "contains":
+                return compare_text in field_text
+            if operator == "not_contains":
+                return compare_text not in field_text
 
         numeric_field = self._to_number(field_value)
         numeric_compare = self._to_number(compare_value)
@@ -131,12 +153,15 @@ class ConditionAgent(BaseAgent):
             )
             return state
 
+        resolved_value = self._resolve_field_value(field, state)
+        resolved_type = type(resolved_value).__name__ if resolved_value is not None else "None"
+        expected_type = type(value).__name__ if value is not None else "None"
         state["condition_result"] = result
         state["condition_field"] = field
         state["condition_operator"] = operator
         state["condition_value"] = value
         state["execution_status"] = "completed"
         state.setdefault("execution_log", []).append(
-            f"{datetime.now(timezone.utc).isoformat()} Condition evaluated: {field} {operator} {value} -> {result}"
+            f"{datetime.now(timezone.utc).isoformat()} Condition evaluated: field={field}; resolved_value={resolved_value}; resolved_type={resolved_type}; operator={operator}; expected_value={value}; expected_type={expected_type}; result={result}"
         )
         return state
