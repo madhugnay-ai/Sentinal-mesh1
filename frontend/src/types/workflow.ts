@@ -39,12 +39,7 @@ export type WorkflowEdge = Edge;
 export type WorkflowPayload = {
   name: string;
   description: string;
-  nodes: Array<{
-    id: string;
-    type: string | undefined;
-    position: { x: number; y: number };
-    data: WorkflowNodeData;
-  }>;
+  nodes: WorkflowNode[];
   edges: WorkflowEdge[];
 };
 
@@ -87,6 +82,21 @@ export type WorkflowRecord = {
   edges: WorkflowEdge[];
   created_at: string;
   updated_at: string;
+};
+
+export type SavedWorkflow = {
+  id: string;
+  name: string;
+  description: string;
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type WorkflowStorageEnvelope = {
+  currentWorkflowId: string | null;
+  workflows: SavedWorkflow[];
 };
 
 export type WorkflowExecutionResult = {

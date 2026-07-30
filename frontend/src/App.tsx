@@ -56,6 +56,7 @@ function App() {
     setSelectedNodeId,
     setName,
     setStatus,
+    setWorkflowId,
     onConnect,
     addNode,
     updateNode,
@@ -64,6 +65,7 @@ function App() {
     loadWorkflow,
     exportJson,
     clearCanvas,
+    startNewWorkflow,
     setEdges,
     setNodes,
     executeWorkflow,
@@ -71,6 +73,8 @@ function App() {
     executionResult,
     isExecuting,
     errorMessage,
+    workflowId,
+    savedWorkflows,
   } = useWorkflow();
 
   const layoutRef = useRef<HTMLDivElement | null>(null);
@@ -181,6 +185,7 @@ function App() {
 
   const handleSelectTemplate = (template: (typeof workflowTemplates)[number]) => {
     setName(template.initialName ?? template.name);
+    setWorkflowId(null);
     setNodes(template.nodes);
     setEdges(template.edges);
     setSelectedNodeId(null);
@@ -211,7 +216,7 @@ function App() {
               <p className="text-sm uppercase tracking-[0.3em] text-cyan-400">SentinelMesh Studio</p>
               <h1 className="mt-2 text-3xl font-semibold">Workflow Builder</h1>
             </div>
-            <Toolbar onSave={saveWorkflow} onLoad={loadWorkflow} onExport={exportJson} onClear={clearCanvas} onExecute={handleExecuteWorkflow} onOpenTemplates={() => setIsTemplateModalOpen(true)} />
+            <Toolbar onSave={saveWorkflow} onLoad={loadWorkflow} onExport={exportJson} onClear={clearCanvas} onExecute={handleExecuteWorkflow} onOpenTemplates={() => setIsTemplateModalOpen(true)} onNewWorkflow={startNewWorkflow} />
           </div>
         </header>
 
@@ -241,6 +246,26 @@ function App() {
                     onChange={(event) => setName(event.target.value)}
                     className="ml-2 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
                   />
+                </label>
+                <label className="text-sm text-slate-400">
+                  Saved workflows
+                  <select
+                    value={workflowId ?? ''}
+                    onChange={(event) => {
+                      const selectedWorkflowId = event.target.value;
+                      if (selectedWorkflowId) {
+                        void loadWorkflow(selectedWorkflowId);
+                      }
+                    }}
+                    className="ml-2 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none"
+                  >
+                    <option value="">New workflow</option>
+                    {savedWorkflows.map((savedWorkflow) => (
+                      <option key={savedWorkflow.id} value={savedWorkflow.id}>
+                        {savedWorkflow.name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <span className={`rounded-full px-3 py-1 text-sm ${executionEligibility.canExecute ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>
                   {executionEligibility.canExecute ? 'Backend Supported' : 'Blocked by Node Support'}

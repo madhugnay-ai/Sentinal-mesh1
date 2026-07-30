@@ -5,11 +5,13 @@ type ToolbarProps = {
   onClear: () => void;
   onExecute: () => void;
   onOpenTemplates: () => void;
+  onNewWorkflow: () => void;
 };
 
-function Toolbar({ onSave, onLoad, onExport, onClear, onExecute, onOpenTemplates }: ToolbarProps) {
+function Toolbar({ onSave, onLoad, onExport, onClear, onExecute, onOpenTemplates, onNewWorkflow }: ToolbarProps) {
   return (
     <div className="flex flex-wrap gap-2">
+      <button onClick={onNewWorkflow} className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 font-medium text-slate-100 transition hover:bg-slate-700">New Workflow</button>
       <button onClick={onSave} className="rounded-xl bg-cyan-500 px-4 py-2 font-medium text-slate-950 transition hover:bg-cyan-400">Save Workflow</button>
       <button onClick={onLoad} className="rounded-xl bg-slate-800 px-4 py-2 font-medium text-slate-100 transition hover:bg-slate-700">Load Workflow</button>
       <button onClick={onOpenTemplates} className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 font-medium text-cyan-200 transition hover:bg-cyan-500/20">Templates</button>

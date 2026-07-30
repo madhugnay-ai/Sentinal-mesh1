@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { type Connection, addEdge, useEdgesState, useNodesState } from 'reactflow';
 import { executeWorkflow, listWorkflows, saveWorkflow } from '../services/api';
-import { loadWorkflowFromStorage, saveWorkflowToStorage, exportWorkflowJson, normalizeWorkflowEdges } from '../services/workflowStorage';
+import { listWorkflowsFromStorage, loadWorkflowFromStorage, saveWorkflowToStorage, exportWorkflowJson, normalizeWorkflowEdges } from '../services/workflowStorage';
 import { getNodeExecutionState, getVisualExecutionState } from './executionState';
-import type { WorkflowEdge, WorkflowExecutionResult, WorkflowNode, WorkflowNodeData, WorkflowNodeField, WorkflowNodeValue, WorkflowPayload } from '../types/workflow';
+import type { SavedWorkflow, WorkflowEdge, WorkflowExecutionResult, WorkflowNode, WorkflowNodeData, WorkflowNodeField, WorkflowNodeValue, WorkflowPayload } from '../types/workflow';
 import { normalizeClassifierCategory } from '../utils/classifierHandles';
 
 const initialNodes: WorkflowNode[] = [
@@ -51,6 +51,7 @@ export function useWorkflow() {
   const [name, setName] = useState('Procurement Workflow');
   const [status, setStatus] = useState('Ready');
   const [workflowId, setWorkflowId] = useState<string | null>(null);
+  const [savedWorkflows, setSavedWorkflows] = useState<SavedWorkflow[]>([]);
   const [executionResult, setExecutionResult] = useState<WorkflowExecutionResult | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -252,19 +253,40 @@ export function useWorkflow() {
     setStatus('Removed selected node');
   };
 
+  const applyWorkflowState = (workflow: { id?: string | null; name: string; nodes: WorkflowNode[]; edges: WorkflowEdge[] }, statusText: string) => {
+    setWorkflowId(workflow.id ?? null);
+    setName(workflow.name);
+    setNodes(workflow.nodes);
+    setEdges(workflow.edges);
+    setSelectedNodeId(null);
+    setStatus(statusText);
+    setErrorMessage(null);
+  };
+
+  const refreshSavedWorkflows = () => {
+    setSavedWorkflows(listWorkflowsFromStorage());
+  };
+
+  useEffect(() => {
+    refreshSavedWorkflows();
+  }, []);
+
   const handleSaveWorkflow = async () => {
+    const workflowName = name.trim() || 'Untitled Workflow';
     const normalizedEdges = normalizeWorkflowEdges(nodes, edges);
     const payload: WorkflowPayload = {
-      name,
-      description: `Workflow built in SentinelMesh Studio: ${name}`,
+      name: workflowName,
+      description: `Workflow built in SentinelMesh Studio: ${workflowName}`,
       nodes: nodes.map(({ id, type, position, data }) => ({ id, type, position, data })),
       edges: normalizedEdges,
     };
 
     try {
       const savedWorkflow = await saveWorkflow(payload);
+      saveWorkflowToStorage(nodes, edges, { workflowId: savedWorkflow.workflow_id, name: workflowName, description: payload.description });
       setWorkflowId(savedWorkflow.workflow_id);
-      saveWorkflowToStorage(nodes, edges);
+      setName(workflowName);
+      refreshSavedWorkflows();
       setStatus(`Workflow saved to backend: ${savedWorkflow.workflow_id}`);
       setErrorMessage(null);
       return savedWorkflow.workflow_id;
@@ -276,9 +298,9 @@ export function useWorkflow() {
     }
   };
 
-  const handleLoadWorkflow = async () => {
+  const handleLoadWorkflow = async (workflowIdToLoad?: string | null) => {
     try {
-      const stored = loadWorkflowFromStorage();
+      const stored = loadWorkflowFromStorage(workflowIdToLoad);
       if (!stored) {
         const workflows = await listWorkflows();
         if (!workflows.length) {
@@ -287,21 +309,18 @@ export function useWorkflow() {
         }
 
         const latest = workflows[workflows.length - 1];
-        setWorkflowId(latest.workflow_id);
-        setName(latest.name);
-        setNodes(latest.nodes as WorkflowNode[]);
-        setEdges(latest.edges);
-        setSelectedNodeId(null);
-        setStatus('Workflow loaded from backend');
-        setErrorMessage(null);
+        applyWorkflowState({
+          id: latest.workflow_id,
+          name: latest.name,
+          nodes: latest.nodes as WorkflowNode[],
+          edges: latest.edges,
+        }, 'Workflow loaded from backend');
+        refreshSavedWorkflows();
         return;
       }
 
-      setNodes(stored.nodes);
-      setEdges(stored.edges);
-      setSelectedNodeId(null);
-      setStatus('Workflow loaded locally');
-      setErrorMessage(null);
+      applyWorkflowState(stored, 'Workflow loaded locally');
+      refreshSavedWorkflows();
     } catch (error) {
       setStatus('Load failed');
       setErrorMessage(error instanceof Error ? error.message : 'Unable to load workflow.');
@@ -392,6 +411,17 @@ export function useWorkflow() {
     setStatus('Canvas cleared');
   };
 
+  const startNewWorkflow = () => {
+    setWorkflowId(null);
+    setName('Procurement Workflow');
+    setNodes([]);
+    setEdges([]);
+    setSelectedNodeId(null);
+    setExecutionResult(null);
+    setStatus('Started a new workflow');
+    setErrorMessage(null);
+  };
+
   return {
     nodes,
     edges,
@@ -407,6 +437,7 @@ export function useWorkflow() {
     setSelectedNodeId,
     setName,
     setStatus,
+    setWorkflowId,
     onConnect,
     addNode,
     updateNode,
@@ -415,11 +446,13 @@ export function useWorkflow() {
     loadWorkflow: handleLoadWorkflow,
     exportJson,
     clearCanvas,
+    startNewWorkflow,
     setNodes,
     setEdges,
     executeWorkflow: executeWorkflowFromBackend,
     replayExecutionAnimation,
     workflowId,
+    savedWorkflows,
     executionResult,
     isExecuting,
     errorMessage,
