@@ -113,3 +113,43 @@ def test_condition_false_branch_monitoring(monkeypatch) -> None:
     assert final_state["completed_stages"] == ["Condition", "Normal Handler"]
     assert "Urgent Handler" not in final_state["completed_stages"]
     assert "Urgent Handler" in final_state["skipped_stages"]
+
+
+def test_condition_branch_monitoring_uses_unique_node_ids(monkeypatch) -> None:
+    workflow = {
+        "workflow_id": "wf-condition-branch-monitor",
+        "nodes": [
+            {"id": "email-trigger-1", "data": {"kind": "email-trigger", "label": "Email Trigger"}},
+            {"id": "extractor-1", "data": {"kind": "extractor", "label": "Extractor"}},
+            {"id": "condition-1", "data": {"kind": "condition", "label": "Condition", "field": "urgency", "operator": "equals", "value": "immediate"}},
+            {"id": "critical-handler-1", "data": {"kind": "llm", "label": "Critical Handler"}},
+            {"id": "normal-handler-1", "data": {"kind": "llm", "label": "Normal Handler"}},
+        ],
+        "edges": [
+            {"source": "email-trigger-1", "target": "extractor-1"},
+            {"source": "extractor-1", "target": "condition-1"},
+            {"source": "condition-1", "sourceHandle": "true", "target": "critical-handler-1"},
+            {"source": "condition-1", "sourceHandle": "false", "target": "normal-handler-1"},
+        ],
+    }
+
+    state = {
+        "workflow_id": workflow["workflow_id"],
+        "current_node": "condition-1",
+        "execution_status": "completed",
+        "execution_log": [],
+        "workflow_data": workflow,
+        "condition_result": True,
+        "executed_nodes": ["email-trigger-1", "extractor-1", "condition-1", "critical-handler-1"],
+        "skipped_nodes": ["normal-handler-1"],
+        "urgency": "immediate",
+    }
+
+    final_state = SupervisorAgent().execute(state)
+
+    assert final_state["completed_stages"] == ["Email Trigger", "Extractor", "Condition", "Critical Handler"]
+    assert final_state["skipped_stages"] == ["Normal Handler"]
+    assert final_state["failed_stages"] == []
+    assert len(final_state["completed_stages"]) + len(final_state["skipped_stages"]) + len(final_state["failed_stages"]) == 5
+    assert final_state["completed_stages"].count("Critical Handler") == 1
+    assert final_state["skipped_stages"].count("Normal Handler") == 1

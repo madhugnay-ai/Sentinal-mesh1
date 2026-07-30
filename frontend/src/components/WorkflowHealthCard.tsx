@@ -42,7 +42,7 @@ function WorkflowHealthCard({ result }: WorkflowHealthCardProps) {
   const firstIncident = result.incident_matches[0];
   const healthClass = healthBadgeStyles[result.workflow_health] ?? 'bg-slate-500/15 text-slate-300 border-slate-500/40';
   const executionClass = executionStatusStyles[result.execution_status] ?? 'bg-slate-500/15 text-slate-300 border-slate-500/40';
-  const totalStages = result.completed_stages.length + result.failed_stages.length;
+  const totalStages = result.completed_stages.length + result.failed_stages.length + (result.skipped_stages?.length ?? 0);
   const progressPercent = totalStages === 0 ? 0 : Math.round((result.completed_stages.length / totalStages) * 100);
 
   return (

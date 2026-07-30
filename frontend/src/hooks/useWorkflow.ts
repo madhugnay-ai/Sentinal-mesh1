@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { type Connection, addEdge, useEdgesState, useNodesState } from 'reactflow';
-import { executeWorkflow, listWorkflows, saveWorkflow } from '../services/api';
+import { executeWorkflow, listWorkflows, saveWorkflow, updateWorkflow } from '../services/api';
 import { listWorkflowsFromStorage, loadWorkflowFromStorage, saveWorkflowToStorage, exportWorkflowJson, normalizeWorkflowEdges } from '../services/workflowStorage';
 import { getNodeExecutionState, getVisualExecutionState } from './executionState';
 import type { SavedWorkflow, WorkflowEdge, WorkflowExecutionResult, WorkflowNode, WorkflowNodeData, WorkflowNodeField, WorkflowNodeValue, WorkflowPayload } from '../types/workflow';
@@ -282,7 +282,13 @@ export function useWorkflow() {
     };
 
     try {
-      const savedWorkflow = await saveWorkflow(payload);
+      let savedWorkflow;
+      if (workflowId) {
+        savedWorkflow = await updateWorkflow(workflowId, payload);
+      } else {
+        savedWorkflow = await saveWorkflow(payload);
+      }
+
       saveWorkflowToStorage(nodes, edges, { workflowId: savedWorkflow.workflow_id, name: workflowName, description: payload.description });
       setWorkflowId(savedWorkflow.workflow_id);
       setName(workflowName);
@@ -363,15 +369,12 @@ export function useWorkflow() {
   };
 
   const executeWorkflowFromBackend = async () => {
-    let currentWorkflowId = workflowId;
+    const currentWorkflowId = workflowId;
 
     if (!currentWorkflowId) {
-      try {
-        currentWorkflowId = await handleSaveWorkflow();
-      } catch {
-        setStatus('Execution unavailable');
-        return;
-      }
+      setStatus('Save or load a workflow before executing');
+      setErrorMessage('Select a saved workflow or save the current canvas before executing.');
+      return;
     }
 
     setIsExecuting(true);

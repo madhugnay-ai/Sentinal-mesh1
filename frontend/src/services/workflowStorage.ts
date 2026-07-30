@@ -8,6 +8,20 @@ function createWorkflowId() {
   return `workflow-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function dedupeWorkflows(workflows: SavedWorkflow[]): SavedWorkflow[] {
+  const uniqueWorkflows = new Map<string, SavedWorkflow>();
+
+  workflows.forEach((workflow) => {
+    if (!workflow?.id) {
+      return;
+    }
+
+    uniqueWorkflows.set(workflow.id, workflow);
+  });
+
+  return Array.from(uniqueWorkflows.values());
+}
+
 function readWorkflowStorageEnvelope(): WorkflowStorageEnvelope {
   if (typeof window === 'undefined') {
     return { currentWorkflowId: null, workflows: [] };
@@ -22,7 +36,7 @@ function readWorkflowStorageEnvelope(): WorkflowStorageEnvelope {
     const parsed = JSON.parse(stored) as Partial<WorkflowStorageEnvelope>;
     return {
       currentWorkflowId: parsed.currentWorkflowId ?? null,
-      workflows: Array.isArray(parsed.workflows) ? parsed.workflows : [],
+      workflows: dedupeWorkflows(Array.isArray(parsed.workflows) ? parsed.workflows : []),
     };
   } catch {
     return { currentWorkflowId: null, workflows: [] };
@@ -111,8 +125,7 @@ export function saveWorkflowToStorage(
     updatedAt: now,
   };
 
-  const nextWorkflows = envelope.workflows.filter((item) => item.id !== workflowId);
-  nextWorkflows.push(workflow);
+  const nextWorkflows = dedupeWorkflows([...envelope.workflows.filter((item) => item.id !== workflowId), workflow]);
 
   writeWorkflowStorageEnvelope({ currentWorkflowId: workflowId, workflows: nextWorkflows });
 
@@ -161,8 +174,7 @@ export function loadWorkflowFromStorage(workflowId?: string | null): SavedWorkfl
     updatedAt: new Date().toISOString(),
   };
 
-  const nextWorkflows = envelope.workflows.filter((item) => item.id !== migratedWorkflow.id);
-  nextWorkflows.push(migratedWorkflow);
+  const nextWorkflows = dedupeWorkflows([...envelope.workflows.filter((item) => item.id !== migratedWorkflow.id), migratedWorkflow]);
   writeWorkflowStorageEnvelope({ currentWorkflowId: migratedWorkflow.id, workflows: nextWorkflows });
 
   return migratedWorkflow;
@@ -170,7 +182,7 @@ export function loadWorkflowFromStorage(workflowId?: string | null): SavedWorkfl
 
 export function listWorkflowsFromStorage(): SavedWorkflow[] {
   const envelope = readWorkflowStorageEnvelope();
-  return envelope.workflows
+  return dedupeWorkflows(envelope.workflows)
     .map((workflow) => ({
       ...workflow,
       nodes: toWorkflowNodes(workflow.nodes),

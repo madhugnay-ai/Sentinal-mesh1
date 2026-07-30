@@ -32,6 +32,15 @@ export async function saveWorkflow(payload: WorkflowPayload): Promise<WorkflowRe
   }
 }
 
+export async function updateWorkflow(workflowId: string, payload: WorkflowPayload): Promise<WorkflowRecord> {
+  try {
+    const response = await api.put<WorkflowRecord>(`/workflows/${workflowId}`, payload);
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+}
+
 export async function loadWorkflow(workflowId: string): Promise<WorkflowRecord> {
   try {
     const response = await api.get<WorkflowRecord>(`/workflows/${workflowId}`);

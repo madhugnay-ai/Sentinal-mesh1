@@ -46,6 +46,33 @@ class SupervisorAgent(BaseAgent):
 
         return str(node.get("id") or node.get("type") or "Node")
 
+    def _stage_label(
+        self,
+        stage_id: str | None,
+        node_lookup: dict[str, dict[str, Any]],
+        use_node_id_for_email_trigger: bool = False,
+    ) -> str:
+        if not stage_id:
+            return ""
+
+        if stage_id in {node_types.REQUIREMENT_VALIDATION, node_types.INVENTORY, node_types.VENDOR_SELECTION, node_types.BUDGET_VALIDATION, node_types.APPROVAL, node_types.PURCHASE_ORDER}:
+            return stage_id
+
+        node = node_lookup.get(stage_id)
+        if node is not None:
+            node_data = node.get("data") if isinstance(node.get("data"), dict) else {}
+            label = node_data.get("label")
+            if isinstance(label, str) and label.strip():
+                return label.strip()
+
+            kind = node_data.get("kind") or node.get("type")
+            if kind in {"email-trigger", "Email Trigger"} and use_node_id_for_email_trigger:
+                node_id = node.get("id")
+                if isinstance(node_id, str) and node_id:
+                    return node_id
+
+        return self._display_label(node or {"id": stage_id, "data": {}})
+
     def _is_generic_execution_node(self, node: dict[str, Any]) -> bool:
         node_data = node.get("data") if isinstance(node.get("data"), dict) else {}
         node_kind = node_data.get("kind") or node.get("type")
@@ -128,15 +155,29 @@ class SupervisorAgent(BaseAgent):
         has_procurement_nodes = any(stage in procurement_stage_names for stage in available_stages)
         is_explicitly_generic_workflow = bool(workflow_nodes) and not has_procurement_nodes and has_generic_nodes
 
-        completed_stages: list[str] = []
-        failed_stages: list[str] = []
-        skipped_stages: list[str] = []
+        stage_ids_by_state: dict[str, list[str]] = {
+            "completed": [],
+            "failed": [],
+            "skipped": [],
+        }
+
+        def record_stage(stage_id: str | None, category: str) -> None:
+            if not stage_id:
+                return
+            for other_category, stage_ids in stage_ids_by_state.items():
+                if other_category == category:
+                    continue
+                if stage_id in stage_ids:
+                    stage_ids_by_state[other_category].remove(stage_id)
+            if stage_id not in stage_ids_by_state[category]:
+                stage_ids_by_state[category].append(stage_id)
 
         generic_nodes: list[dict[str, Any]] = []
         for node in self._workflow_nodes(state):
             if self._is_generic_execution_node(node):
                 generic_nodes.append(node)
-        
+
+        node_lookup = {str(node.get("id")): node for node in generic_nodes if isinstance(node.get("id"), str)}
 
         executed_nodes = list(state.get("executed_nodes") or [])
         skipped_nodes = list(state.get("skipped_nodes") or [])
@@ -172,10 +213,12 @@ class SupervisorAgent(BaseAgent):
             for node in generic_nodes:
                 node_data = node.get("data") if isinstance(node.get("data"), dict) else {}
                 if node_data.get("kind") in {"email-trigger", "Email Trigger"}:
-                    label = node_data.get("label") or node.get("id") or node.get("type")
-                    auto_completed.append(str(label))
+                    node_id = node.get("id")
+                    if isinstance(node_id, str) and node_id:
+                        auto_completed.append(node_id)
             if auto_completed and all((n.get("data") or {}).get("kind") in {"email-trigger", "Email Trigger"} for n in generic_nodes):
-                completed_stages.extend(auto_completed)
+                for node_id in auto_completed:
+                    record_stage(node_id, "completed")
                 # Only short-circuit when the workflow contains nothing but email-trigger nodes
                 generic_auto_completed = True
         
@@ -204,19 +247,21 @@ class SupervisorAgent(BaseAgent):
             if isinstance(src, str) and isinstance(handle, str) and isinstance(tgt, str):
                 branch_outgoing.setdefault(src, {})[handle] = tgt
 
-        marked_nodes: set[str] = set()
-
+        handled_stage_ids: set[str] = set()
         for index, node in enumerate(generic_nodes):
             if generic_auto_completed:
                 # we've already recorded completions for generic nodes
                 break
             node_data = node.get("data") if isinstance(node.get("data"), dict) else {}
-            label = self._display_label(node)
             node_id = node.get("id")
+            if not isinstance(node_id, str) or not node_id:
+                continue
+            if node_id in handled_stage_ids:
+                continue
             # Special-case Condition nodes: mark only the taken branch completed
             if node_data.get("kind") in {"condition", "Condition"}:
-                completed_stages.append(str(label))
-                marked_nodes.add(node_id)
+                record_stage(node_id, "completed")
+                handled_stage_ids.add(node_id)
                 branches = branch_outgoing.get(node_id, {})
                 taken = None
                 if state.get("condition_result") is True:
@@ -227,24 +272,16 @@ class SupervisorAgent(BaseAgent):
                 for handle, target in branches.items():
                     if not target:
                         continue
-                    target_label = None
-                    for n in generic_nodes:
-                        if n.get("id") == target:
-                            target_label = self._display_label(n)
-                            break
                     if target == taken:
-                        if target not in marked_nodes:
-                            completed_stages.append(str(target_label or target))
-                            marked_nodes.add(target)
+                        record_stage(target, "completed")
                     else:
-                        if target not in marked_nodes:
-                            skipped_stages.append(str(target_label or target))
-                            marked_nodes.add(target)
+                        record_stage(target, "skipped")
+                    handled_stage_ids.add(target)
                 # move to next node
                 continue
             if node_data.get("kind") in {"router", "Router"}:
-                completed_stages.append(str(label))
-                marked_nodes.add(node_id)
+                record_stage(node_id, "completed")
+                handled_stage_ids.add(node_id)
                 branches = branch_outgoing.get(node_id, {})
                 taken = None
                 selected_route = state.get("router_result")
@@ -253,101 +290,103 @@ class SupervisorAgent(BaseAgent):
                 for handle, target in branches.items():
                     if not target:
                         continue
-                    target_label = None
-                    for n in generic_nodes:
-                        if n.get("id") == target:
-                            target_label = self._display_label(n)
-                            break
                     if target == taken:
-                        if target not in marked_nodes:
-                            completed_stages.append(str(target_label or target))
-                            marked_nodes.add(target)
+                        record_stage(target, "completed")
                     else:
-                        if target not in marked_nodes:
-                            skipped_stages.append(str(target_label or target))
-                            marked_nodes.add(target)
-                continue
-            if node_id in marked_nodes:
+                        record_stage(target, "skipped")
+                    handled_stage_ids.add(target)
                 continue
             if failure_node_id and node_id == failure_node_id:
-                failed_stages.append(str(label))
+                record_stage(node_id, "failed")
             elif node_id in skipped_nodes:
-                skipped_stages.append(str(label))
+                record_stage(node_id, "skipped")
             elif node_id in executed_nodes:
-                completed_stages.append(str(label))
+                record_stage(node_id, "completed")
             elif success_index is not None and index <= success_index:
-                completed_stages.append(str(label))
+                record_stage(node_id, "completed")
             elif no_messages_detected:
                 if node_data.get("kind") in {"email-trigger", "Email Trigger"}:
-                    completed_stages.append(str(label))
+                    record_stage(node_id, "completed")
                 else:
-                    skipped_stages.append(str(label))
+                    record_stage(node_id, "skipped")
             elif failure_index is not None and index < failure_index:
-                completed_stages.append(str(label))
+                record_stage(node_id, "completed")
             else:
-                skipped_stages.append(str(label))
+                record_stage(node_id, "skipped")
 
         if node_types.REQUIREMENT_VALIDATION in available_stages:
             if state.get("validation_passed") is True:
-                completed_stages.append(node_types.REQUIREMENT_VALIDATION)
+                record_stage(node_types.REQUIREMENT_VALIDATION, "completed")
             elif state.get("validation_passed") is None:
-                skipped_stages.append(node_types.REQUIREMENT_VALIDATION)
+                record_stage(node_types.REQUIREMENT_VALIDATION, "skipped")
             else:
-                failed_stages.append(node_types.REQUIREMENT_VALIDATION)
+                record_stage(node_types.REQUIREMENT_VALIDATION, "failed")
 
         if node_types.INVENTORY in available_stages:
             inventory_checked = state.get("inventory_checked")
             if inventory_checked is True and execution_status not in {"failed", "rejected"}:
-                completed_stages.append(node_types.INVENTORY)
+                record_stage(node_types.INVENTORY, "completed")
             elif inventory_checked is None:
-                skipped_stages.append(node_types.INVENTORY)
+                record_stage(node_types.INVENTORY, "skipped")
             else:
-                failed_stages.append(node_types.INVENTORY)
+                record_stage(node_types.INVENTORY, "failed")
 
         if node_types.VENDOR_SELECTION in available_stages:
             vendor_selection_completed = state.get("vendor_selection_completed")
             if vendor_selection_completed is True and execution_status not in {"failed", "rejected"}:
-                completed_stages.append(node_types.VENDOR_SELECTION)
+                record_stage(node_types.VENDOR_SELECTION, "completed")
             elif vendor_selection_completed is None:
-                skipped_stages.append(node_types.VENDOR_SELECTION)
+                record_stage(node_types.VENDOR_SELECTION, "skipped")
             else:
-                failed_stages.append(node_types.VENDOR_SELECTION)
+                record_stage(node_types.VENDOR_SELECTION, "failed")
 
         if node_types.BUDGET_VALIDATION in available_stages:
             if state.get("budget_validation_passed") is True:
-                completed_stages.append(node_types.BUDGET_VALIDATION)
+                record_stage(node_types.BUDGET_VALIDATION, "completed")
             elif state.get("budget_validation_passed") is None:
-                skipped_stages.append(node_types.BUDGET_VALIDATION)
+                record_stage(node_types.BUDGET_VALIDATION, "skipped")
             else:
-                failed_stages.append(node_types.BUDGET_VALIDATION)
+                record_stage(node_types.BUDGET_VALIDATION, "failed")
 
         if node_types.APPROVAL in available_stages:
             approval_status = state.get("approval_status")
             if approval_status == "Approved":
-                completed_stages.append(node_types.APPROVAL)
+                record_stage(node_types.APPROVAL, "completed")
             elif approval_status == "Pending Manager Approval":
-                completed_stages.append(node_types.APPROVAL)
+                record_stage(node_types.APPROVAL, "completed")
             elif approval_status == "Rejected":
-                failed_stages.append(node_types.APPROVAL)
+                record_stage(node_types.APPROVAL, "failed")
             elif approval_status is None:
-                skipped_stages.append(node_types.APPROVAL)
+                record_stage(node_types.APPROVAL, "skipped")
             else:
-                failed_stages.append(node_types.APPROVAL)
+                record_stage(node_types.APPROVAL, "failed")
 
         if node_types.PURCHASE_ORDER in available_stages:
             purchase_order_generated = state.get("purchase_order_generated")
             if purchase_order_generated is True:
-                completed_stages.append(node_types.PURCHASE_ORDER)
+                record_stage(node_types.PURCHASE_ORDER, "completed")
             elif purchase_order_generated is None:
-                skipped_stages.append(node_types.PURCHASE_ORDER)
+                record_stage(node_types.PURCHASE_ORDER, "skipped")
             elif state.get("approval_status") == "Pending Manager Approval":
-                skipped_stages.append(node_types.PURCHASE_ORDER)
+                record_stage(node_types.PURCHASE_ORDER, "skipped")
             elif execution_status == "failed" or errors:
-                failed_stages.append(node_types.PURCHASE_ORDER)
+                record_stage(node_types.PURCHASE_ORDER, "failed")
             else:
-                skipped_stages.append(node_types.PURCHASE_ORDER)
+                record_stage(node_types.PURCHASE_ORDER, "skipped")
 
-        failed_stages = list(dict.fromkeys(failed_stages))
+        use_node_id_for_email_trigger = len(generic_nodes) == 1
+        completed_stages = [
+            self._stage_label(stage_id, node_lookup, use_node_id_for_email_trigger=use_node_id_for_email_trigger)
+            for stage_id in stage_ids_by_state["completed"]
+        ]
+        failed_stages = [
+            self._stage_label(stage_id, node_lookup, use_node_id_for_email_trigger=use_node_id_for_email_trigger)
+            for stage_id in stage_ids_by_state["failed"]
+        ]
+        skipped_stages = [
+            self._stage_label(stage_id, node_lookup, use_node_id_for_email_trigger=use_node_id_for_email_trigger)
+            for stage_id in stage_ids_by_state["skipped"]
+        ]
 
         if execution_status == "failed" or errors:
             workflow_health = "Failed"
